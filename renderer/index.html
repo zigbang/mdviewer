@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MD Viewer</title>
+
+  <!-- highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+  <!-- KaTeX -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
+  <!-- marked -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@11.0.0/marked.min.js"></script>
+
+  <!-- mermaid 최신 -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ── 툴바 ───────────────────────────────────────────── -->
+<div id="toolbar">
+  <img id="toolbar-logo" src="logo.png" alt="zigbang smart home" title="smarthome.zigbang.com">
+  <button id="btn-toggle-sidebar" title="Toggle Sidebar (Ctrl+B)">
+    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="4" height="16" rx="1"/><rect x="9" y="4" width="12" height="2" rx="1"/><rect x="9" y="10" width="10" height="2" rx="1"/><rect x="9" y="16" width="11" height="2" rx="1"/></svg>
+  </button>
+  <div id="toolbar-center">
+    <button id="btn-fullscreen" title="Fullscreen (F11)">
+      <svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+    </button>
+    <button id="btn-theme" title="Toggle Theme">
+      <svg id="theme-icon-sun" viewBox="0 0 24 24" style="display:none"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+      <svg id="theme-icon-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+    <button id="btn-translate" title="Translate">
+      <svg viewBox="0 0 24 24"><path d="M3 5h12M9 3v2m1.048 3.5A18.24 18.24 0 0 1 6 13.5M8 17l2-4.5M12.5 17l2-4.5M21 21l-4.5-9-4.5 9M14 18h5"/><path d="M12.913 17H20.087"/></svg>
+    </button>
+    <span id="file-name-text"></span>
+    <div id="zoom-controls">
+      <button id="btn-zoom-out" title="Zoom Out (Ctrl+-)">-</button>
+      <span id="zoom-level">100%</span>
+      <button id="btn-zoom-in" title="Zoom In (Ctrl+=)">+</button>
+    </div>
+  </div>
+  <button id="btn-toggle-toc" title="Toggle TOC (Ctrl+T)">
+    <svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+    <span>TOC</span>
+  </button>
+  <button id="btn-about" title="About">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+  </button>
+</div>
+
+<!-- ── About 모달 ─────────────────────────────────────── -->
+<div id="about-overlay">
+  <div id="about-modal">
+    <div id="about-version">MD Viewer v1.3.0</div>
+    <p id="about-text">고뇌에 찬 모습으로 일하는 우리들을 위해<br>머리 식힐겸 딸깍 해봅니다...<br><br><em>for Device Engineering</em></p>
+    <table id="about-shortcuts">
+      <tr><td><kbd>Ctrl</kbd>+<kbd>B</kbd></td><td>Toggle Sidebar</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>T</kbd></td><td>Toggle TOC</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>+</kbd></td><td>Zoom In</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>-</kbd></td><td>Zoom Out</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>=</kbd></td><td>Reset Zoom</td></tr>
+      <tr><td><kbd>F11</kbd></td><td>Fullscreen</td></tr>
+      <tr><td><kbd>Page Up</kbd>/<kbd>Down</kbd></td><td>Scroll Page</td></tr>
+      <tr><td><kbd>Home</kbd>/<kbd>End</kbd></td><td>Scroll to Top/Bottom</td></tr>
+    </table>
+    <button id="about-close">Close</button>
+  </div>
+</div>
+
+<!-- ── 번역 모달 ──────────────────────────────────────── -->
+<div id="translate-overlay">
+  <div id="translate-modal">
+    <div id="translate-notice">Not tested</div>
+    <div class="translate-field">
+      <label for="translate-lang">Target Language</label>
+      <select id="translate-lang">
+        <option value="zh-CN">Chinese (Simplified)</option>
+        <option value="en">English</option>
+        <option value="ko">Korean</option>
+      </select>
+    </div>
+    <div class="translate-field">
+      <label for="translate-token">Claude API Token</label>
+      <input type="text" id="translate-token" placeholder="sk-ant-api03-...">
+    </div>
+    <div id="translate-status"></div>
+    <div id="translate-actions">
+      <button id="translate-cancel">Cancel</button>
+      <button id="translate-ok">Translate</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 메인 레이아웃 ──────────────────────────────────── -->
+<div id="layout">
+
+  <!-- 파일 사이드바 -->
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <span id="sidebar-root-name">Files</span>
+      <button id="btn-open-folder" title="Open Folder (Ctrl+Shift+O)">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
+      </button>
+    </div>
+    <div id="file-tree">
+      <div class="empty-hint">
+        <p>📂</p>
+        <p>Open a folder</p>
+        <button onclick="document.getElementById('btn-open-folder').click()">Open Folder</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 사이드바 리사이즈 핸들 -->
+  <div class="resize-handle" id="resize-sidebar"></div>
+
+  <!-- MD 미리보기 -->
+  <div id="preview-wrap">
+    <div id="preview-empty">
+      <p>📄</p>
+      <p>Select a file</p>
+    </div>
+    <div id="preview"></div>
+  </div>
+
+  <!-- TOC 리사이즈 핸들 -->
+  <div class="resize-handle" id="resize-toc"></div>
+
+  <!-- 목차 패널 -->
+  <div id="toc-panel">
+    <div id="toc-header">Table of Contents</div>
+    <div id="toc-list"></div>
+  </div>
+
+</div>
+
+<!-- Drop overlay -->
+<div id="drop-overlay">
+  <div id="drop-message">Drop .md files here</div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
