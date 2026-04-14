@@ -1,5 +1,7 @@
 # MD Viewer
 
+[![MDViewer Build](https://github.com/zigbang/at/actions/workflows/mdviewer-build.yml/badge.svg)](https://github.com/zigbang/at/actions/workflows/mdviewer-build.yml)
+
 Markdown 뷰어 — Electron + marked.js + Mermaid + KaTeX + highlight.js
 
 ## 기능
