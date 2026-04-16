@@ -1,5 +1,17 @@
 # MDViewer Release History
 
+## V2.0.0
+
+### Changes
+- Migrated from Electron to Tauri v2 (Rust + system WebView)
+- Distribution size reduced from ~67MB to ~6MB
+- Lower memory footprint (~50-150MB vs ~200-400MB)
+- Native system title bar on all platforms (Windows, macOS, Linux)
+- Rust backend replaces Node.js (file I/O, path resolution, folder dialog, translate API)
+- All V1.4.0 features preserved: unified link handler, navigation history, mermaid, KaTeX, themes, drag & drop, translation
+
+---
+
 ## V1.4.0
 
 ### Changes

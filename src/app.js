@@ -1,6 +1,10 @@
 /* ════════════════════════════════════════════════════════
-   MD Viewer — app.js
+   MD Viewer — app.js (Tauri v2)
    ════════════════════════════════════════════════════════ */
+
+// ── Tauri API ────────────────────────────────────────────
+const { invoke } = window.__TAURI__.core
+const { getCurrentWindow } = window.__TAURI__.window
 
 // ── mermaid 초기화 ────────────────────────────────────────
 function initMermaid(isDark) {
@@ -39,8 +43,8 @@ let sidebarVisible  = true
 let tocVisible      = true
 
 // ── 네비게이션 히스토리 (링크 클릭으로만 push) ─────────────
-const navHistory = []     // { path, hash, scrollTop }
-let navIndex = -1         // 현재 위치. -1 = 비어 있음
+const navHistory = []
+let navIndex = -1
 
 function resetHistory() {
   navHistory.length = 0
@@ -66,13 +70,13 @@ const btnZoomOut      = document.getElementById('btn-zoom-out')
 
 // ── 로고 클릭 → 외부 브라우저 ────────────────────────────
 document.getElementById('toolbar-logo').addEventListener('click', () => {
-  window.api.openExternal('https://smarthome.zigbang.com/')
+  invoke('open_external', { url: 'https://smarthome.zigbang.com/' })
 })
 
 // ── 리프레시 ────────────────────────────────────────────
 async function refreshFile() {
   if (!currentFilePath) return
-  const content = await window.api.readFile(currentFilePath)
+  const content = await invoke('read_file', { filePath: currentFilePath })
   originalMarkdown = content
   renderMarkdown(content)
 }
@@ -80,7 +84,7 @@ document.getElementById('btn-refresh').addEventListener('click', refreshFile)
 
 // ── 전체 화면 ───────────────────────────────────────────
 document.getElementById('btn-fullscreen').addEventListener('click', () => {
-  window.api.toggleFullscreen()
+  invoke('toggle_fullscreen')
 })
 
 // ── About 모달 ──────────────────────────────────────────
@@ -102,7 +106,6 @@ const translateLang    = document.getElementById('translate-lang')
 const translateStatus  = document.getElementById('translate-status')
 let originalMarkdown   = null
 
-// 저장된 토큰 복원
 const savedToken = localStorage.getItem('md-viewer-claude-token')
 if (savedToken) translateToken.value = savedToken
 
@@ -140,7 +143,7 @@ document.getElementById('translate-ok').addEventListener('click', async () => {
   document.getElementById('translate-ok').disabled = true
 
   try {
-    const translated = await window.api.translateMarkdown({
+    const translated = await invoke('translate_markdown', {
       markdown: originalMarkdown,
       targetLang: translateLang.value,
       apiToken: token
@@ -151,7 +154,7 @@ document.getElementById('translate-ok').addEventListener('click', async () => {
     fileNameText.textContent = name + ' (Translated)'
     renderMarkdown(translated)
   } catch (err) {
-    translateStatus.textContent = err.message
+    translateStatus.textContent = err
     translateStatus.className = 'error'
   } finally {
     document.getElementById('translate-ok').disabled = false
@@ -235,7 +238,7 @@ document.addEventListener('keydown', e => {
   }
   if (e.key === 'F11') {
     e.preventDefault()
-    window.api.toggleFullscreen()
+    invoke('toggle_fullscreen')
   }
   if (e.key === 'F5') {
     e.preventDefault()
@@ -254,26 +257,12 @@ document.addEventListener('keydown', e => {
 
 // ── 폴더 열기 ────────────────────────────────────────────
 btnOpenFolder.addEventListener('click', async () => {
-  const result = await window.api.openFolderDialog()
+  const result = await invoke('open_folder_dialog')
   if (!result) return
   renderFileTree(result.tree, result.rootPath)
 })
 
-window.api.onFolderOpened(({ tree, rootPath }) => {
-  renderFileTree(tree, rootPath)
-})
-
-// ── 커맨드라인 파일 열기 (파일 연결 프로그램) ────────────────
-window.api.onFilesOpened(filePaths => {
-  const fileList = filePaths.map(fp => ({
-    name: fp.split(/[\\/]/).pop(),
-    path: fp
-  }))
-  renderDroppedFiles(fileList)
-  const firstItem = fileTree.querySelector('.tree-item[data-path]')
-  if (firstItem) firstItem.click()
-})
-
+// ── 파일트리 렌더링 ─────────────────────────────────────
 function renderFileTree(tree, rootPath) {
   if (!tree) {
     fileTree.innerHTML = '<div class="empty-hint"><p>📭</p><p>No .md files found</p></div>'
@@ -281,7 +270,6 @@ function renderFileTree(tree, rootPath) {
   }
   sidebarRootName.textContent = tree.name || rootPath.split(/[\\/]/).pop()
   fileTree.innerHTML = ''
-  // 루트가 파일이면 바로, 디렉토리면 children 렌더
   if (tree.type === 'dir') {
     tree.children.forEach(node => fileTree.appendChild(createTreeNode(node, 0)))
   } else {
@@ -300,7 +288,6 @@ function createTreeNode(node, depth) {
     return el
   }
 
-  // 디렉토리
   const wrap = document.createElement('div')
 
   const row = document.createElement('div')
@@ -326,11 +313,22 @@ function createTreeNode(node, depth) {
 async function openFile(filePath, treeEl, { resetNav = true } = {}) {
   if (resetNav) resetHistory()
 
-  // 파일트리 active 표시
   document.querySelectorAll('.tree-item.active').forEach(e => e.classList.remove('active'))
   if (treeEl) treeEl.classList.add('active')
 
-  const content = await window.api.readFile(filePath)
+  let content
+  try {
+    content = await invoke('read_file', { filePath: filePath })
+  } catch (err) {
+    currentFilePath = null
+    previewEmpty.classList.add('hidden')
+    preview.style.display = 'block'
+    preview.innerHTML = `<div style="padding:40px;color:var(--text-dim);text-align:center">
+      <p style="font-size:32px;margin-bottom:16px">📄</p>
+      <p>File not found</p>
+      <p style="font-size:12px;margin-top:8px;opacity:0.6">${filePath}</p></div>`
+    return
+  }
   currentFilePath = filePath
   originalMarkdown = content
   const name = filePath.split(/[\\/]/).pop()
@@ -341,20 +339,16 @@ async function openFile(filePath, treeEl, { resetNav = true } = {}) {
 }
 
 // ── 네비게이션 진입점 ────────────────────────────────────
-// 링크 클릭으로 이동할 때만 호출. 현재 위치를 seed하고 target을 push.
 async function navigateByLink(targetPath, targetHash) {
   const previewWrap = document.getElementById('preview-wrap')
 
-  // 비어 있으면 현재 상태를 seed
   if (navIndex < 0 && currentFilePath) {
     navHistory.push({ path: currentFilePath, hash: null, scrollTop: previewWrap.scrollTop })
     navIndex = 0
   } else if (navIndex >= 0) {
-    // 현재 엔트리의 scrollTop 갱신 (떠나기 직전 위치 기록)
     navHistory[navIndex].scrollTop = previewWrap.scrollTop
   }
 
-  // forward 스택 버리고 target 추가
   navHistory.length = navIndex + 1
   navHistory.push({ path: targetPath, hash: targetHash || null, scrollTop: 0 })
   navIndex++
@@ -369,7 +363,6 @@ async function applyNavEntry(entry) {
       .find(el => el.dataset.path === entry.path)
     await openFile(entry.path, treeEl, { resetNav: false })
   }
-  // 렌더/레이아웃 안정화 후 스크롤
   requestAnimationFrame(() => {
     if (entry.hash) {
       const target = preview.querySelector(`#${CSS.escape(entry.hash)}`) ||
@@ -396,20 +389,11 @@ async function navForward() {
 
 // ── Markdown 렌더링 ──────────────────────────────────────
 async function renderMarkdown(mdText) {
-  // 빈 화면 숨기기
   previewEmpty.classList.add('hidden')
   preview.style.display = 'block'
-
-  // HTML 변환
   preview.innerHTML = marked.parse(mdText)
-
-  // mermaid 렌더링
   await renderMermaid()
-
-  // KaTeX 수식 렌더링
   renderKatex()
-
-  // TOC 생성
   buildToc()
 }
 
@@ -423,7 +407,7 @@ preview.addEventListener('click', async e => {
   // 1) 외부 URL
   if (/^(https?:|mailto:|tel:)/i.test(href)) {
     e.preventDefault()
-    window.api.openExternal(href)
+    invoke('open_external', { url: href })
     return
   }
 
@@ -440,15 +424,16 @@ preview.addEventListener('click', async e => {
   e.preventDefault()
   if (!currentFilePath) return
   const [pathPart, hashPart] = href.split('#')
-  const resolved = await window.api.resolveRelative(currentFilePath, decodeURI(pathPart))
+  const resolved = await invoke('resolve_relative', {
+    fromFile: currentFilePath,
+    relPath: decodeURI(pathPart)
+  })
   const ext = resolved.split('.').pop().toLowerCase()
 
   if (ext === 'md' || ext === 'markdown') {
-    // 앱 내부에서 열기 — history에 push
     await navigateByLink(resolved, hashPart ? decodeURIComponent(hashPart) : null)
   } else {
-    // 이미지/PDF 등 — 시스템 기본 앱으로 열기 (history 무관)
-    window.api.openPath(resolved)
+    invoke('open_path_cmd', { path: resolved })
   }
 })
 
@@ -465,8 +450,6 @@ window.addEventListener('mousedown', e => {
 async function renderMermaid() {
   const blocks = preview.querySelectorAll('.mermaid')
   if (!blocks.length) return
-
-  // mermaid 11.x API
   try {
     await mermaid.run({ nodes: Array.from(blocks) })
   } catch (e) {
@@ -503,7 +486,6 @@ function buildToc() {
     return
   }
 
-  // 각 heading에 id 부여
   headings.forEach((h, i) => {
     if (!h.id) h.id = `heading-${i}`
 
@@ -516,7 +498,6 @@ function buildToc() {
 
     item.addEventListener('click', () => {
       h.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      // active 표시
       document.querySelectorAll('.toc-item').forEach(t => t.classList.remove('active'))
       item.classList.add('active')
     })
@@ -524,7 +505,6 @@ function buildToc() {
     tocList.appendChild(item)
   })
 
-  // 스크롤 시 active TOC 아이템 업데이트
   setupScrollSpy(headings)
 }
 
@@ -543,7 +523,6 @@ function setupScrollSpy(headings) {
         tocItems.forEach(item => {
           item.classList.toggle('active', item.dataset.target === id)
         })
-        // active 아이템이 TOC 뷰포트 안에 오도록 스크롤
         const activeItem = tocList.querySelector('.toc-item.active')
         if (activeItem) {
           activeItem.scrollIntoView({ block: 'nearest' })
@@ -558,50 +537,31 @@ function setupScrollSpy(headings) {
   headings.forEach(h => scrollSpyObserver.observe(h))
 }
 
-// ── Drag & Drop ─────────────────────────────────────────
+// ── Drag & Drop (Tauri native event) ─────────────────────
 const dropOverlay = document.getElementById('drop-overlay')
-let dragCounter = 0
 
-document.addEventListener('dragenter', e => {
-  e.preventDefault()
-  dragCounter++
-  dropOverlay.classList.add('visible')
-})
-
-document.addEventListener('dragleave', e => {
-  e.preventDefault()
-  dragCounter--
-  if (dragCounter <= 0) {
-    dragCounter = 0
+getCurrentWindow().onDragDropEvent(event => {
+  const type = event.payload.type
+  if (type === 'enter' || type === 'over') {
+    dropOverlay.classList.add('visible')
+  } else if (type === 'leave' || type === 'cancel') {
     dropOverlay.classList.remove('visible')
+  } else if (type === 'drop') {
+    dropOverlay.classList.remove('visible')
+    const paths = event.payload.paths || []
+    const mdFiles = paths.filter(p => {
+      const ext = p.split('.').pop().toLowerCase()
+      return ext === 'md' || ext === 'markdown'
+    })
+    if (!mdFiles.length) return
+    const fileList = mdFiles.map(p => ({ name: p.split(/[\\/]/).pop(), path: p }))
+    renderDroppedFiles(fileList)
+    const firstItem = fileTree.querySelector('.tree-item[data-path]')
+    if (firstItem) firstItem.click()
   }
 })
 
-document.addEventListener('dragover', e => {
-  e.preventDefault()
-})
-
-document.addEventListener('drop', e => {
-  e.preventDefault()
-  dragCounter = 0
-  dropOverlay.classList.remove('visible')
-
-  const files = Array.from(e.dataTransfer.files)
-  const mdFiles = files.filter(f => {
-    const ext = f.name.split('.').pop().toLowerCase()
-    return ext === 'md' || ext === 'markdown'
-  })
-  if (!mdFiles.length) return
-
-  const fileList = mdFiles.map(f => ({ name: f.name, path: f.path }))
-  renderDroppedFiles(fileList)
-  // 첫 번째 파일 자동 표시
-  const firstItem = fileTree.querySelector('.tree-item[data-path]')
-  if (firstItem) firstItem.click()
-})
-
 function renderDroppedFiles(files) {
-  // 디렉토리별 그룹핑
   const groups = {}
   for (const f of files) {
     const dir = f.path.replace(/[\\/][^\\/]+$/, '')
@@ -621,7 +581,6 @@ function renderDroppedFiles(files) {
   fileTree.innerHTML = ''
 
   for (const dir of dirs) {
-    // 디렉토리가 여러 개이면 디렉토리 헤더 표시
     if (!singleDir) {
       const header = document.createElement('div')
       header.className = 'tree-dir-header'

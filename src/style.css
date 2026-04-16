@@ -59,13 +59,11 @@ html, body {
   padding: 0 8px;
   gap: 4px;
   flex-shrink: 0;
-  -webkit-app-region: drag;
 }
 
 #toolbar-logo {
   height: 16px;
   cursor: pointer;
-  -webkit-app-region: no-drag;
 }
 
 #toolbar button {
@@ -79,7 +77,6 @@ html, body {
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 12px;
-  -webkit-app-region: no-drag;
   transition: background 0.15s;
 }
 #toolbar button:hover { background: var(--bg3); }
@@ -98,7 +95,6 @@ html, body {
   justify-content: center;
   gap: 10px;
   overflow: hidden;
-  -webkit-app-region: drag;
 }
 
 #file-name-text {
@@ -111,14 +107,14 @@ html, body {
 
 #btn-fullscreen {
   padding: 4px 6px !important;
-  -webkit-app-region: no-drag;
+
 }
 
 #zoom-controls {
   display: none;
   align-items: center;
   gap: 2px;
-  -webkit-app-region: no-drag;
+
   flex-shrink: 0;
 }
 #zoom-controls.visible { display: flex; }
@@ -138,7 +134,7 @@ html, body {
   font-weight: 600;
   line-height: 1;
   padding: 0;
-  -webkit-app-region: no-drag;
+
   transition: background 0.15s;
 }
 #zoom-controls button:hover { background: var(--accent-hover); }
@@ -149,7 +145,7 @@ html, body {
   min-width: 36px;
   text-align: center;
   cursor: pointer;
-  -webkit-app-region: no-drag;
+
 }
 
 /* ── 레이아웃 ─────────────────────────────────────────── */

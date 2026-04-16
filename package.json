@@ -1,46 +1,10 @@
 {
-  "name": "md-viewer",
-  "version": "1.4.0",
-  "description": "Markdown Viewer",
-  "main": "main.js",
+  "name": "md-viewer-tauri",
+  "version": "2.0.0",
   "scripts": {
-    "start": "electron .",
-    "build:win": "electron-builder --win --x64",
-    "build:mac": "electron-builder --mac --x64 --arm64",
-    "build:all": "electron-builder --win --x64 --mac --x64 --arm64"
-  },
-  "build": {
-    "appId": "com.mdviewer.app",
-    "productName": "MD Viewer",
-    "asar": true,
-    "files": [
-      "main.js",
-      "preload.js",
-      "renderer/**/*",
-      "icon.ico",
-      "icon.png",
-      "node_modules/**/*"
-    ],
-    "artifactName": "MDViewer_V${version}-${arch}.${ext}",
-    "win": {
-      "icon": "icon.ico",
-      "target": [
-        { "target": "portable", "arch": ["x64"] }
-      ]
-    },
-    "mac": {
-      "icon": "icon.png",
-      "target": [
-        { "target": "zip", "arch": ["x64", "arm64"] }
-      ]
-    }
+    "tauri": "tauri"
   },
   "devDependencies": {
-    "electron": "^28.0.0",
-    "electron-builder": "^24.0.0"
-  },
-  "dependencies": {
-    "marked": "^11.0.0",
-    "highlight.js": "^11.9.0"
+    "@tauri-apps/cli": "^2"
   }
 }
