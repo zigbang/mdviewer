@@ -33,6 +33,16 @@ function createWindow() {
   mainWindow.loadFile('renderer/index.html')
   Menu.setApplicationMenu(null)
 
+  // 네비게이션 안전망 — 렌더러에서 처리되지 않은 링크가 윈도우 전체를 날려먹는 것 방지
+  mainWindow.webContents.on('will-navigate', (e, url) => {
+    e.preventDefault()
+    if (/^https?:/i.test(url)) shell.openExternal(url)
+  })
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:/i.test(url)) shell.openExternal(url)
+    return { action: 'deny' }
+  })
+
   // 커맨드라인으로 전달된 .md 파일 열기
   mainWindow.webContents.once('did-finish-load', () => {
     const files = getArgFiles()
@@ -95,6 +105,12 @@ ipcMain.handle('toggle-fullscreen', () => {
 ipcMain.handle('open-external', (_, url) => {
   shell.openExternal(url)
 })
+
+ipcMain.handle('resolve-relative', (_, fromFile, relPath) => {
+  return path.resolve(path.dirname(fromFile), relPath)
+})
+
+ipcMain.handle('open-path', (_, p) => shell.openPath(p))
 
 ipcMain.handle('translate-markdown', async (_, { markdown, targetLang, apiToken }) => {
   const langNames = { 'zh-CN': 'Simplified Chinese', 'en': 'English', 'ko': 'Korean' }

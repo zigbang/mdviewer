@@ -47,6 +47,9 @@
       <span id="zoom-level">100%</span>
       <button id="btn-zoom-in" title="Zoom In (Ctrl+=)">+</button>
     </div>
+    <button id="btn-refresh" title="Refresh (F5)">
+      <svg viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+    </button>
   </div>
   <button id="btn-toggle-toc" title="Toggle TOC (Ctrl+T)">
     <svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
@@ -60,7 +63,7 @@
 <!-- ── About 모달 ─────────────────────────────────────── -->
 <div id="about-overlay">
   <div id="about-modal">
-    <div id="about-version">MD Viewer v1.3.0</div>
+    <div id="about-version">MD Viewer v1.4.0</div>
     <p id="about-text">고뇌에 찬 모습으로 일하는 우리들을 위해<br>머리 식힐겸 딸깍 해봅니다...<br><br><em>for Device Engineering</em></p>
     <table id="about-shortcuts">
       <tr><td><kbd>Ctrl</kbd>+<kbd>B</kbd></td><td>Toggle Sidebar</td></tr>
@@ -68,9 +71,11 @@
       <tr><td><kbd>Ctrl</kbd>+<kbd>+</kbd></td><td>Zoom In</td></tr>
       <tr><td><kbd>Ctrl</kbd>+<kbd>-</kbd></td><td>Zoom Out</td></tr>
       <tr><td><kbd>Ctrl</kbd>+<kbd>=</kbd></td><td>Reset Zoom</td></tr>
+      <tr><td><kbd>F5</kbd></td><td>Refresh</td></tr>
       <tr><td><kbd>F11</kbd></td><td>Fullscreen</td></tr>
       <tr><td><kbd>Page Up</kbd>/<kbd>Down</kbd></td><td>Scroll Page</td></tr>
       <tr><td><kbd>Home</kbd>/<kbd>End</kbd></td><td>Scroll to Top/Bottom</td></tr>
+      <tr><td><kbd>Alt</kbd>+<kbd>←</kbd>/<kbd>→</kbd></td><td>Navigate Back/Forward</td></tr>
     </table>
     <button id="about-close">Close</button>
   </div>

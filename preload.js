@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('api', {
   openFolderDialog: ()  => ipcRenderer.invoke('open-folder-dialog'),
   readFile:    (p)      => ipcRenderer.invoke('read-file', p),
   openExternal:(url)    => ipcRenderer.invoke('open-external', url),
+  resolveRelative: (from, rel) => ipcRenderer.invoke('resolve-relative', from, rel),
+  openPath:     (p)     => ipcRenderer.invoke('open-path', p),
   zoomIn:       () => webFrame.setZoomLevel(webFrame.getZoomLevel() + 1),
   zoomOut:      () => webFrame.setZoomLevel(webFrame.getZoomLevel() - 1),
   zoomReset:    () => webFrame.setZoomLevel(0),

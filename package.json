@@ -1,6 +1,6 @@
 {
   "name": "md-viewer",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Markdown Viewer",
   "main": "main.js",
   "scripts": {
@@ -21,7 +21,7 @@
       "icon.png",
       "node_modules/**/*"
     ],
-    "artifactName": "MDViewer_V${version}.${ext}",
+    "artifactName": "MDViewer_V${version}-${arch}.${ext}",
     "win": {
       "icon": "icon.ico",
       "target": [

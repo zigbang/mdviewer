@@ -1,5 +1,17 @@
 # MDViewer Release History
 
+## V1.4.0
+
+### Changes
+- Unified link handler: external URLs open in browser, in-document anchors scroll smoothly, relative `.md` links open within the app, other files open in system default app
+- Navigation safety guard: `will-navigate` and `setWindowOpenHandler` prevent blank screen on unhandled links
+- Navigation history for link clicks: back/forward via mouse side buttons or Alt+Left/Right
+- In-document anchor navigation also tracked in history with scroll position preservation
+- macOS build: ad-hoc codesign and `ditto` repack in CI for Apple Silicon compatibility
+- Build artifact renamed to include architecture (`MDViewer_V{version}-{arch}`)
+
+---
+
 ## V1.3.0
 
 ### Changes

@@ -38,6 +38,15 @@ let currentFilePath = null
 let sidebarVisible  = true
 let tocVisible      = true
 
+// ── 네비게이션 히스토리 (링크 클릭으로만 push) ─────────────
+const navHistory = []     // { path, hash, scrollTop }
+let navIndex = -1         // 현재 위치. -1 = 비어 있음
+
+function resetHistory() {
+  navHistory.length = 0
+  navIndex = -1
+}
+
 // ── DOM 레퍼런스 ─────────────────────────────────────────
 const sidebar         = document.getElementById('sidebar')
 const tocPanel        = document.getElementById('toc-panel')
@@ -59,6 +68,15 @@ const btnZoomOut      = document.getElementById('btn-zoom-out')
 document.getElementById('toolbar-logo').addEventListener('click', () => {
   window.api.openExternal('https://smarthome.zigbang.com/')
 })
+
+// ── 리프레시 ────────────────────────────────────────────
+async function refreshFile() {
+  if (!currentFilePath) return
+  const content = await window.api.readFile(currentFilePath)
+  originalMarkdown = content
+  renderMarkdown(content)
+}
+document.getElementById('btn-refresh').addEventListener('click', refreshFile)
 
 // ── 전체 화면 ───────────────────────────────────────────
 document.getElementById('btn-fullscreen').addEventListener('click', () => {
@@ -219,6 +237,13 @@ document.addEventListener('keydown', e => {
     e.preventDefault()
     window.api.toggleFullscreen()
   }
+  if (e.key === 'F5') {
+    e.preventDefault()
+    refreshFile()
+  }
+  // 네비게이션 back/forward
+  if (e.altKey && e.key === 'ArrowLeft')  { e.preventDefault(); navBack() }
+  if (e.altKey && e.key === 'ArrowRight') { e.preventDefault(); navForward() }
   // Page Up / Page Down / Home / End → 미리보기 스크롤
   const pw = document.getElementById('preview-wrap')
   if (e.key === 'PageDown')  { e.preventDefault(); pw.scrollBy(0, pw.clientHeight * 0.85) }
@@ -298,7 +323,9 @@ function createTreeNode(node, depth) {
 }
 
 // ── 파일 열기 ────────────────────────────────────────────
-async function openFile(filePath, treeEl) {
+async function openFile(filePath, treeEl, { resetNav = true } = {}) {
+  if (resetNav) resetHistory()
+
   // 파일트리 active 표시
   document.querySelectorAll('.tree-item.active').forEach(e => e.classList.remove('active'))
   if (treeEl) treeEl.classList.add('active')
@@ -310,7 +337,61 @@ async function openFile(filePath, treeEl) {
   fileNameText.textContent = name
   zoomControls.classList.add('visible')
 
-  renderMarkdown(content)
+  await renderMarkdown(content)
+}
+
+// ── 네비게이션 진입점 ────────────────────────────────────
+// 링크 클릭으로 이동할 때만 호출. 현재 위치를 seed하고 target을 push.
+async function navigateByLink(targetPath, targetHash) {
+  const previewWrap = document.getElementById('preview-wrap')
+
+  // 비어 있으면 현재 상태를 seed
+  if (navIndex < 0 && currentFilePath) {
+    navHistory.push({ path: currentFilePath, hash: null, scrollTop: previewWrap.scrollTop })
+    navIndex = 0
+  } else if (navIndex >= 0) {
+    // 현재 엔트리의 scrollTop 갱신 (떠나기 직전 위치 기록)
+    navHistory[navIndex].scrollTop = previewWrap.scrollTop
+  }
+
+  // forward 스택 버리고 target 추가
+  navHistory.length = navIndex + 1
+  navHistory.push({ path: targetPath, hash: targetHash || null, scrollTop: 0 })
+  navIndex++
+
+  await applyNavEntry(navHistory[navIndex])
+}
+
+async function applyNavEntry(entry) {
+  const previewWrap = document.getElementById('preview-wrap')
+  if (entry.path !== currentFilePath) {
+    const treeEl = Array.from(fileTree.querySelectorAll('.tree-item[data-path]'))
+      .find(el => el.dataset.path === entry.path)
+    await openFile(entry.path, treeEl, { resetNav: false })
+  }
+  // 렌더/레이아웃 안정화 후 스크롤
+  requestAnimationFrame(() => {
+    if (entry.hash) {
+      const target = preview.querySelector(`#${CSS.escape(entry.hash)}`) ||
+                     preview.querySelector(`[id="${entry.hash}"]`)
+      if (target) { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); return }
+    }
+    previewWrap.scrollTo(0, entry.scrollTop || 0)
+  })
+}
+
+async function navBack() {
+  if (navIndex <= 0) return
+  navHistory[navIndex].scrollTop = document.getElementById('preview-wrap').scrollTop
+  navIndex--
+  await applyNavEntry(navHistory[navIndex])
+}
+
+async function navForward() {
+  if (navIndex >= navHistory.length - 1) return
+  navHistory[navIndex].scrollTop = document.getElementById('preview-wrap').scrollTop
+  navIndex++
+  await applyNavEntry(navHistory[navIndex])
 }
 
 // ── Markdown 렌더링 ──────────────────────────────────────
@@ -330,18 +411,55 @@ async function renderMarkdown(mdText) {
 
   // TOC 생성
   buildToc()
-
-  // 외부 링크 처리
-  preview.querySelectorAll('a[href]').forEach(a => {
-    const href = a.getAttribute('href')
-    if (href.startsWith('http://') || href.startsWith('https://')) {
-      a.addEventListener('click', e => {
-        e.preventDefault()
-        window.api.openExternal(href)
-      })
-    }
-  })
 }
+
+// ── 링크 클릭 처리 (이벤트 위임, 1회 등록) ───────────────
+preview.addEventListener('click', async e => {
+  const a = e.target.closest('a[href]')
+  if (!a) return
+  const href = a.getAttribute('href')
+  if (!href) return
+
+  // 1) 외부 URL
+  if (/^(https?:|mailto:|tel:)/i.test(href)) {
+    e.preventDefault()
+    window.api.openExternal(href)
+    return
+  }
+
+  // 2) 페이지 내 앵커 (#id) — history에 push
+  if (href.startsWith('#')) {
+    e.preventDefault()
+    if (!currentFilePath) return
+    const id = decodeURIComponent(href.slice(1))
+    await navigateByLink(currentFilePath, id)
+    return
+  }
+
+  // 3) 상대 경로 — 현재 파일 기준으로 resolve
+  e.preventDefault()
+  if (!currentFilePath) return
+  const [pathPart, hashPart] = href.split('#')
+  const resolved = await window.api.resolveRelative(currentFilePath, decodeURI(pathPart))
+  const ext = resolved.split('.').pop().toLowerCase()
+
+  if (ext === 'md' || ext === 'markdown') {
+    // 앱 내부에서 열기 — history에 push
+    await navigateByLink(resolved, hashPart ? decodeURIComponent(hashPart) : null)
+  } else {
+    // 이미지/PDF 등 — 시스템 기본 앱으로 열기 (history 무관)
+    window.api.openPath(resolved)
+  }
+})
+
+// ── 마우스 back/forward 버튼 ─────────────────────────────
+window.addEventListener('mouseup', e => {
+  if (e.button === 3) { e.preventDefault(); navBack() }
+  if (e.button === 4) { e.preventDefault(); navForward() }
+})
+window.addEventListener('mousedown', e => {
+  if (e.button === 3 || e.button === 4) e.preventDefault()
+})
 
 // ── Mermaid 렌더링 ───────────────────────────────────────
 async function renderMermaid() {
