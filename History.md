@@ -1,5 +1,24 @@
 # MDViewer Release History
 
+## V2.1.0
+
+### Changes
+- Local images (png/gif/jpg) now render: enable Tauri asset protocol, add `http://asset.localhost` to CSP `img-src` (Windows asset URLs use http scheme), convert relative `<img>` sources via `convertFileSrc` after markdown render
+- Strip `\\?\` UNC prefix from Windows `canonicalize()` so asset scope and OS-open accept the path
+- Broken links show a "File not found" preview regardless of extension; the missing target is pushed to nav history so Alt+Left / back works; filename bar and TOC reflect the missing state
+- Window title shows `<filename> - MD Viewer - <full path>` when a file is open (with `(not found)` / `(Translated)` markers for those states); plain "MD Viewer" when nothing is selected
+- About modal tagline tightened to just "for Device Engineering"
+
+### Fixes
+- CSP was blocking every Tauri IPC call (`http://ipc.localhost`), so Open Folder and all other commands silently failed — added `ipc:` and `http://ipc.localhost` to `connect-src`
+- Tauri's auto-injected script nonces disabled `'unsafe-inline'`, which blocked the inline `onclick=` on the empty-hint Open Folder button; replaced with an addEventListener wiring
+- `open_folder_dialog` switched to async `pick_folder` + tokio oneshot so the async runtime isn't blocked
+
+### Build / Dev
+- `devtools` feature enabled for release builds (F12 / right-click → Inspect); no auto-open on startup
+
+---
+
 ## V2.0.0
 
 ### Changes
