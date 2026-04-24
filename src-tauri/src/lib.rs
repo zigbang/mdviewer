@@ -200,13 +200,6 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .setup(|app| {
-            use tauri::Manager;
-            if let Some(window) = app.get_webview_window("main") {
-                window.open_devtools();
-            }
-            Ok(())
-        })
         .invoke_handler(tauri::generate_handler![
             build_file_tree,
             open_folder_dialog,

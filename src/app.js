@@ -73,6 +73,12 @@ document.getElementById('toolbar-logo').addEventListener('click', () => {
   invoke('open_external', { url: 'https://smarthome.zigbang.com/' })
 })
 
+// ── 윈도우 타이틀 업데이트 ────────────────────────────────
+function setWindowTitle(displayName, filePath) {
+  const title = filePath ? `${displayName} - MD Viewer - ${filePath}` : 'MD Viewer'
+  getCurrentWindow().setTitle(title)
+}
+
 // ── 리프레시 ────────────────────────────────────────────
 async function refreshFile() {
   if (!currentFilePath) return
@@ -152,6 +158,7 @@ document.getElementById('translate-ok').addEventListener('click', async () => {
 
     const name = currentFilePath.split(/[\\/]/).pop()
     fileNameText.textContent = name + ' (Translated)'
+    setWindowTitle(name + ' (Translated)', currentFilePath)
     renderMarkdown(translated)
   } catch (err) {
     translateStatus.textContent = err
@@ -328,6 +335,7 @@ async function openFile(filePath, treeEl, { resetNav = true } = {}) {
     currentFilePath = null
     const missingName = filePath.split(/[\\/]/).pop()
     fileNameText.textContent = missingName + ' (not found)'
+    setWindowTitle(missingName + ' (not found)', filePath)
     previewEmpty.classList.add('hidden')
     preview.style.display = 'block'
     preview.innerHTML = `<div style="padding:40px;color:var(--text-dim);text-align:center">
@@ -341,6 +349,7 @@ async function openFile(filePath, treeEl, { resetNav = true } = {}) {
   originalMarkdown = content
   const name = filePath.split(/[\\/]/).pop()
   fileNameText.textContent = name
+  setWindowTitle(name, filePath)
   zoomControls.classList.add('visible')
 
   await renderMarkdown(content)
