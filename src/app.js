@@ -262,6 +262,11 @@ btnOpenFolder.addEventListener('click', async () => {
   renderFileTree(result.tree, result.rootPath)
 })
 
+const btnOpenFolderEmpty = document.getElementById('btn-open-folder-empty')
+if (btnOpenFolderEmpty) {
+  btnOpenFolderEmpty.addEventListener('click', () => btnOpenFolder.click())
+}
+
 // ── 파일트리 렌더링 ─────────────────────────────────────
 function renderFileTree(tree, rootPath) {
   if (!tree) {
@@ -321,12 +326,15 @@ async function openFile(filePath, treeEl, { resetNav = true } = {}) {
     content = await invoke('read_file', { filePath: filePath })
   } catch (err) {
     currentFilePath = null
+    const missingName = filePath.split(/[\\/]/).pop()
+    fileNameText.textContent = missingName + ' (not found)'
     previewEmpty.classList.add('hidden')
     preview.style.display = 'block'
     preview.innerHTML = `<div style="padding:40px;color:var(--text-dim);text-align:center">
       <p style="font-size:32px;margin-bottom:16px">📄</p>
       <p>File not found</p>
       <p style="font-size:12px;margin-top:8px;opacity:0.6">${filePath}</p></div>`
+    tocList.innerHTML = '<div style="padding:12px;color:var(--text-dim);font-size:12px">No headings</div>'
     return
   }
   currentFilePath = filePath
@@ -387,11 +395,29 @@ async function navForward() {
   await applyNavEntry(navHistory[navIndex])
 }
 
+// ── 이미지 경로 → asset URL 변환 ─────────────────────────
+async function fixImagePaths() {
+  if (!currentFilePath) return
+  const imgs = preview.querySelectorAll('img')
+  if (!imgs.length) return
+  await Promise.all(Array.from(imgs).map(async img => {
+    const src = img.getAttribute('src')
+    if (!src || /^(https?:|data:|blob:|asset:)/.test(src)) return
+    try {
+      const absPath = await invoke('resolve_relative', { fromFile: currentFilePath, relPath: decodeURIComponent(src) })
+      img.src = window.__TAURI__.core.convertFileSrc(absPath)
+    } catch (e) {
+      console.warn('Image path resolve failed:', src, e)
+    }
+  }))
+}
+
 // ── Markdown 렌더링 ──────────────────────────────────────
 async function renderMarkdown(mdText) {
   previewEmpty.classList.add('hidden')
   preview.style.display = 'block'
   preview.innerHTML = marked.parse(mdText)
+  await fixImagePaths()
   await renderMermaid()
   renderKatex()
   buildToc()
@@ -429,6 +455,13 @@ preview.addEventListener('click', async e => {
     relPath: decodeURI(pathPart)
   })
   const ext = resolved.split('.').pop().toLowerCase()
+  const exists = await invoke('path_exists', { path: resolved })
+
+  // 존재하지 않으면 확장자 무관 navigateByLink로 → File not found 프리뷰 + history 포함
+  if (!exists) {
+    await navigateByLink(resolved, null)
+    return
+  }
 
   if (ext === 'md' || ext === 'markdown') {
     await navigateByLink(resolved, hashPart ? decodeURIComponent(hashPart) : null)

@@ -82,11 +82,14 @@ fn build_file_tree(dir_path: String) -> Option<FileNode> {
 #[tauri::command]
 async fn open_folder_dialog(app: tauri::AppHandle) -> Result<Option<serde_json::Value>, String> {
     use tauri_plugin_dialog::DialogExt;
-    let folder = app
-        .dialog()
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app.dialog()
         .file()
         .set_title("Open Markdown Folder")
-        .blocking_pick_folder();
+        .pick_folder(move |path| {
+            let _ = tx.send(path);
+        });
+    let folder = rx.await.map_err(|e| e.to_string())?;
     match folder {
         Some(path) => {
             let root_path = path.to_string();
@@ -116,16 +119,20 @@ fn read_file(file_path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
+fn path_exists(path: String) -> bool {
+    Path::new(&path).exists()
+}
+
+#[tauri::command]
 fn resolve_relative(from_file: String, rel_path: String) -> String {
     let parent = Path::new(&from_file)
         .parent()
         .unwrap_or(Path::new(""));
     let resolved = parent.join(&rel_path);
-    resolved
-        .canonicalize()
-        .unwrap_or(resolved)
-        .to_string_lossy()
-        .to_string()
+    let canon = resolved.canonicalize().unwrap_or(resolved);
+    let s = canon.to_string_lossy().to_string();
+    // Windows canonicalize는 \\?\C:\... UNC 경로를 반환 — asset 프로토콜/OS open이 꺼림
+    s.strip_prefix(r"\\?\").map(String::from).unwrap_or(s)
 }
 
 #[tauri::command]
@@ -193,11 +200,19 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .setup(|app| {
+            use tauri::Manager;
+            if let Some(window) = app.get_webview_window("main") {
+                window.open_devtools();
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             build_file_tree,
             open_folder_dialog,
             read_file,
             resolve_relative,
+            path_exists,
             open_external,
             open_path_cmd,
             toggle_fullscreen,
