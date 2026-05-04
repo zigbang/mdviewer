@@ -43,15 +43,6 @@ let currentWorkspaceRoot = null
 let sidebarVisible      = true
 let tocVisible          = true
 
-// ── 네비게이션 히스토리 (링크 클릭으로만 push) ─────────────
-const navHistory = []
-let navIndex = -1
-
-function resetHistory() {
-  navHistory.length = 0
-  navIndex = -1
-}
-
 // ── DOM 레퍼런스 ─────────────────────────────────────────
 const sidebar         = document.getElementById('sidebar')
 const tocPanel        = document.getElementById('toc-panel')
@@ -82,10 +73,10 @@ function setWindowTitle(displayName, filePath) {
 
 // ── 리프레시 ────────────────────────────────────────────
 async function refreshFile() {
-  if (!currentFilePath) return
-  const content = await invoke('read_file', { filePath: currentFilePath })
-  originalMarkdown = content
-  renderMarkdown(content)
+  const t = MDV.tabs.active(); if (!t) return
+  t.renderedHTML = null
+  t.missing = false
+  await MDV.tabs.activate(t.id)
 }
 document.getElementById('btn-refresh').addEventListener('click', refreshFile)
 
@@ -253,8 +244,30 @@ document.addEventListener('keydown', e => {
     refreshFile()
   }
   // 네비게이션 back/forward
-  if (e.altKey && e.key === 'ArrowLeft')  { e.preventDefault(); navBack() }
-  if (e.altKey && e.key === 'ArrowRight') { e.preventDefault(); navForward() }
+  if (e.altKey && e.key === 'ArrowLeft')  { e.preventDefault(); MDV.tabs.navBack().catch(err => console.warn(err)) }
+  if (e.altKey && e.key === 'ArrowRight') { e.preventDefault(); MDV.tabs.navForward().catch(err => console.warn(err)) }
+  // Tabs: Ctrl+W close, Ctrl+Tab cycle, Ctrl+1..9 jump
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'w') {
+    e.preventDefault()
+    const t = MDV.tabs.active(); if (t) MDV.tabs.close(t.id)
+  }
+  if (e.ctrlKey && e.key === 'Tab') {
+    e.preventDefault()
+    const tabs = MDV.tabs.list()
+    if (tabs.length) {
+      const cur = MDV.tabs.active()
+      const i = cur ? tabs.findIndex(t => t.id === cur.id) : 0
+      const next = e.shiftKey ? (i - 1 + tabs.length) % tabs.length
+                              : (i + 1) % tabs.length
+      MDV.tabs.activate(tabs[next].id)
+    }
+  }
+  if ((e.ctrlKey || e.metaKey) && /^[1-9]$/.test(e.key)) {
+    e.preventDefault()
+    const tabs = MDV.tabs.list()
+    const idx = e.key === '9' ? tabs.length - 1 : parseInt(e.key, 10) - 1
+    if (tabs[idx]) MDV.tabs.activate(tabs[idx].id)
+  }
   // Page Up / Page Down / Home / End → 미리보기 스크롤
   const pw = document.getElementById('preview-wrap')
   if (e.key === 'PageDown')  { e.preventDefault(); pw.scrollBy(0, pw.clientHeight * 0.85) }
@@ -266,7 +279,8 @@ document.addEventListener('keydown', e => {
 // ── 미리보기 스크롤 세션 저장 ────────────────────────────
 const previewWrapEl = document.getElementById('preview-wrap')
 previewWrapEl.addEventListener('scroll', () => {
-  MDV.recents.saveSession({ scrollTop: previewWrapEl.scrollTop })
+  const t = MDV.tabs.active()
+  if (t) t.scrollTop = previewWrapEl.scrollTop
 })
 
 // ── 폴더 열기 ────────────────────────────────────────────
@@ -309,20 +323,73 @@ function expandDirs(relPaths) {
   })
 }
 
-async function openFileRestore(filePath, scrollTop) {
-  await openFile(filePath, null, { pushRecent: false })
-  // Apply scroll after render settles
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      const pw = document.getElementById('preview-wrap')
-      if (pw) pw.scrollTop = scrollTop || 0
-    })
-  })
+/**
+ * Read + render a markdown file into the current #preview.
+ * Also syncs app-level UI: window title, file-name label, zoom controls,
+ * file-tree highlight, recents push. Tab state stays the caller's job.
+ * Returns { ok, errorHtml? }.
+ */
+async function renderPath(filePath, { pushRecent = true } = {}) {
+  try {
+    const content = await invoke('read_file', { filePath })
+    originalMarkdown = content
+    currentFilePath = filePath
+    const name = filePath.split(/[\\/]/).pop()
+    fileNameText.textContent = name
+    setWindowTitle(name, filePath)
+    zoomControls.classList.add('visible')
+    document.querySelectorAll('.tree-item.active').forEach(e => e.classList.remove('active'))
+    const treeEl = fileTree.querySelector(`.tree-item[data-path="${CSS.escape(filePath)}"]`)
+    if (treeEl) treeEl.classList.add('active')
+    if (pushRecent) MDV.recents.pushRecentFile(filePath)
+    await renderMarkdown(content)
+    return { ok: true }
+  } catch (err) {
+    currentFilePath = null
+    const missingName = filePath.split(/[\\/]/).pop()
+    const errorHtml = `<div style="padding:40px;color:var(--text-dim);text-align:center">
+      <p style="font-size:32px;margin-bottom:16px">📄</p>
+      <p>File not found</p>
+      <p style="font-size:12px;margin-top:8px;opacity:0.6">${filePath}</p></div>`
+    return { ok: false, errorHtml, missingName }
+  }
 }
 
-// Expose for session.js
+// ── Empty / error state helpers (called by tabs.js) ─────────
+function showEmpty() {
+  preview.style.display = 'none'
+  preview.innerHTML = ''
+  previewEmpty.classList.remove('hidden')
+  fileNameText.textContent = ''
+  setWindowTitle('MD Viewer', null)
+}
+
+function showError(filePath) {
+  previewEmpty.classList.add('hidden')
+  preview.style.display = 'block'
+  preview.innerHTML = `<div style="padding:40px;color:var(--text-dim);text-align:center">
+      <p style="font-size:32px;margin-bottom:16px">📄</p>
+      <p>File not found</p>
+      <p style="font-size:12px;margin-top:8px;opacity:0.6">${filePath}</p></div>`
+}
+
+function adoptRenderedTab(filePath, markdownSource) {
+  currentFilePath = filePath
+  originalMarkdown = markdownSource
+  const name = filePath.split(/[\\/]/).pop()
+  fileNameText.textContent = name
+  setWindowTitle(name, filePath)
+  zoomControls.classList.add('visible')
+  document.querySelectorAll('.tree-item.active').forEach(e => e.classList.remove('active'))
+  const treeEl = fileTree.querySelector(`.tree-item[data-path="${CSS.escape(filePath)}"]`)
+  if (treeEl) treeEl.classList.add('active')
+  buildToc()
+}
+
+// Expose for session.js and tabs.js
 window.MDV = window.MDV || {}
-window.MDV.app = { openWorkspaceByPathRestore, openFileRestore, expandDirs }
+function getOriginalMarkdown() { return originalMarkdown }
+window.MDV.app = { openWorkspaceByPathRestore, expandDirs, renderPath, showEmpty, showError, adoptRenderedTab, getOriginalMarkdown }
 
 btnOpenFolder.addEventListener('click', async () => {
   const result = await invoke('open_folder_dialog')
@@ -373,7 +440,8 @@ function createTreeNode(node, depth) {
     el.style.paddingLeft = `${8 + depth * 12}px`
     el.innerHTML = `<span class="icon">📄</span><span class="label">${node.name}</span>`
     el.dataset.path = node.path
-    el.addEventListener('click', () => openFile(node.path, el))
+    el.addEventListener('click', () => MDV.tabs.open(node.path, { pinned: false }))
+    el.addEventListener('dblclick', () => MDV.tabs.open(node.path, { pinned: true }))
     return el
   }
 
@@ -398,97 +466,6 @@ function createTreeNode(node, depth) {
   wrap.appendChild(row)
   wrap.appendChild(children)
   return wrap
-}
-
-// ── 파일 열기 ────────────────────────────────────────────
-async function openFile(filePath, treeEl, { resetNav = true, pushRecent = true } = {}) {
-  if (resetNav) resetHistory()
-
-  document.querySelectorAll('.tree-item.active').forEach(e => e.classList.remove('active'))
-  if (treeEl) treeEl.classList.add('active')
-
-  let content
-  try {
-    content = await invoke('read_file', { filePath: filePath })
-  } catch (err) {
-    currentFilePath = null
-    const missingName = filePath.split(/[\\/]/).pop()
-    fileNameText.textContent = missingName + ' (not found)'
-    setWindowTitle(missingName + ' (not found)', filePath)
-    previewEmpty.classList.add('hidden')
-    preview.style.display = 'block'
-    preview.innerHTML = `<div style="padding:40px;color:var(--text-dim);text-align:center">
-      <p style="font-size:32px;margin-bottom:16px">📄</p>
-      <p>File not found</p>
-      <p style="font-size:12px;margin-top:8px;opacity:0.6">${filePath}</p></div>`
-    tocList.innerHTML = '<div style="padding:12px;color:var(--text-dim);font-size:12px">No headings</div>'
-    return
-  }
-  currentFilePath = filePath
-  originalMarkdown = content
-  const name = filePath.split(/[\\/]/).pop()
-  fileNameText.textContent = name
-  setWindowTitle(name, filePath)
-  zoomControls.classList.add('visible')
-
-  // Reset scroll position before rendering so the new content starts at top.
-  // Without this, an in-flight scroll event from the innerHTML swap can write a stale value into the session.
-  const previewWrap = document.getElementById('preview-wrap')
-  if (previewWrap) previewWrap.scrollTop = 0
-
-  if (pushRecent) MDV.recents.pushRecentFile(filePath)
-  MDV.recents.saveSession({ activeFile: filePath, scrollTop: 0 })
-
-  await renderMarkdown(content)
-}
-
-// ── 네비게이션 진입점 ────────────────────────────────────
-async function navigateByLink(targetPath, targetHash) {
-  const previewWrap = document.getElementById('preview-wrap')
-
-  if (navIndex < 0 && currentFilePath) {
-    navHistory.push({ path: currentFilePath, hash: null, scrollTop: previewWrap.scrollTop })
-    navIndex = 0
-  } else if (navIndex >= 0) {
-    navHistory[navIndex].scrollTop = previewWrap.scrollTop
-  }
-
-  navHistory.length = navIndex + 1
-  navHistory.push({ path: targetPath, hash: targetHash || null, scrollTop: 0 })
-  navIndex++
-
-  await applyNavEntry(navHistory[navIndex])
-}
-
-async function applyNavEntry(entry) {
-  const previewWrap = document.getElementById('preview-wrap')
-  if (entry.path !== currentFilePath) {
-    const treeEl = Array.from(fileTree.querySelectorAll('.tree-item[data-path]'))
-      .find(el => el.dataset.path === entry.path)
-    await openFile(entry.path, treeEl, { resetNav: false, pushRecent: false })
-  }
-  requestAnimationFrame(() => {
-    if (entry.hash) {
-      const target = preview.querySelector(`#${CSS.escape(entry.hash)}`) ||
-                     preview.querySelector(`[id="${entry.hash}"]`)
-      if (target) { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); return }
-    }
-    previewWrap.scrollTo(0, entry.scrollTop || 0)
-  })
-}
-
-async function navBack() {
-  if (navIndex <= 0) return
-  navHistory[navIndex].scrollTop = document.getElementById('preview-wrap').scrollTop
-  navIndex--
-  await applyNavEntry(navHistory[navIndex])
-}
-
-async function navForward() {
-  if (navIndex >= navHistory.length - 1) return
-  navHistory[navIndex].scrollTop = document.getElementById('preview-wrap').scrollTop
-  navIndex++
-  await applyNavEntry(navHistory[navIndex])
 }
 
 // ── 이미지 경로 → asset URL 변환 ─────────────────────────
@@ -533,12 +510,14 @@ preview.addEventListener('click', async e => {
     return
   }
 
-  // 2) 페이지 내 앵커 (#id) — history에 push
+  // 2) 페이지 내 앵커 (#id) — 스크롤만, history push 없음
   if (href.startsWith('#')) {
     e.preventDefault()
     if (!currentFilePath) return
     const id = decodeURIComponent(href.slice(1))
-    await navigateByLink(currentFilePath, id)
+    const target = preview.querySelector(`#${CSS.escape(id)}`) ||
+                   preview.querySelector(`[id="${id}"]`)
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' })
     return
   }
 
@@ -553,14 +532,22 @@ preview.addEventListener('click', async e => {
   const ext = resolved.split('.').pop().toLowerCase()
   const exists = await invoke('path_exists', { path: resolved })
 
-  // 존재하지 않으면 확장자 무관 navigateByLink로 → File not found 프리뷰 + history 포함
+  // 존재하지 않으면 tab logic으로 → File not found 프리뷰 (Task 7에서 UI 개선)
   if (!exists) {
-    await navigateByLink(resolved, null)
+    await MDV.tabs.openFromLink(resolved)
     return
   }
 
   if (ext === 'md' || ext === 'markdown') {
-    await navigateByLink(resolved, hashPart ? decodeURIComponent(hashPart) : null)
+    await MDV.tabs.openFromLink(resolved)
+    if (hashPart) {
+      requestAnimationFrame(() => {
+        const id = decodeURIComponent(hashPart)
+        const target = preview.querySelector(`#${CSS.escape(id)}`) ||
+                       preview.querySelector(`[id="${id}"]`)
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
+    }
   } else {
     invoke('open_path_cmd', { path: resolved })
   }
@@ -568,8 +555,8 @@ preview.addEventListener('click', async e => {
 
 // ── 마우스 back/forward 버튼 ─────────────────────────────
 window.addEventListener('mouseup', e => {
-  if (e.button === 3) { e.preventDefault(); navBack() }
-  if (e.button === 4) { e.preventDefault(); navForward() }
+  if (e.button === 3) { e.preventDefault(); MDV.tabs.navBack().catch(err => console.warn(err)) }
+  if (e.button === 4) { e.preventDefault(); MDV.tabs.navForward().catch(err => console.warn(err)) }
 })
 window.addEventListener('mousedown', e => {
   if (e.button === 3 || e.button === 4) e.preventDefault()
@@ -723,7 +710,7 @@ function renderDroppedFiles(files) {
       el.className = 'tree-item'
       el.innerHTML = `<span class="icon">📄</span><span class="label">${f.name}</span>`
       el.dataset.path = f.path
-      el.addEventListener('click', () => openFile(f.path, el))
+      el.addEventListener('click', () => MDV.tabs.open(f.path, { pinned: true }))
       fileTree.appendChild(el)
     }
   }
@@ -805,16 +792,12 @@ btnClearRecents.addEventListener('click', () => {
   hideRecentDropdown()
 })
 
-// pickers — implementations land in Task 5 (workspace) and use existing openFile (file)
+// pickers — workspace entry triggers openWorkspaceByPath; file recents go through MDV.tabs.open
 async function pickWorkspace(entry) {
   await openWorkspaceByPath(entry.path)
 }
 async function pickFile(entry) {
-  // If the picked file is in the current workspace tree, find its row to highlight it.
-  // If it's cross-workspace, treeEl will be null and tree highlight stays on the prior file
-  // (known limitation — see spec §14).
-  const treeEl = fileTree.querySelector(`.tree-item[data-path="${CSS.escape(entry.path)}"]`)
-  await openFile(entry.path, treeEl)
+  await MDV.tabs.open(entry.path, { pinned: true })
 }
 
 // ── 리사이즈 핸들 ────────────────────────────────────────

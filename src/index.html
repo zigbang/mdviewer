@@ -63,7 +63,7 @@
 <!-- ── About 모달 ─────────────────────────────────────── -->
 <div id="about-overlay">
   <div id="about-modal">
-    <div id="about-version">MD Viewer v2.1.0</div>
+    <div id="about-version">MD Viewer v2.2.0</div>
     <p id="about-text"><em>for Device Engineering</em></p>
     <table id="about-shortcuts">
       <tr><td><kbd>Ctrl</kbd>+<kbd>B</kbd></td><td>Toggle Sidebar</td></tr>
@@ -76,6 +76,9 @@
       <tr><td><kbd>Page Up</kbd>/<kbd>Down</kbd></td><td>Scroll Page</td></tr>
       <tr><td><kbd>Home</kbd>/<kbd>End</kbd></td><td>Scroll to Top/Bottom</td></tr>
       <tr><td><kbd>Alt</kbd>+<kbd>←</kbd>/<kbd>→</kbd></td><td>Navigate Back/Forward</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>W</kbd></td><td>Close Active Tab</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>Tab</kbd></td><td>Next Tab (Shift = Previous)</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>1..9</kbd></td><td>Jump to Tab N (9 = last)</td></tr>
     </table>
     <button id="about-close">Close</button>
   </div>
@@ -146,6 +149,7 @@
 
   <!-- MD 미리보기 -->
   <div id="preview-wrap">
+    <div id="tab-bar"></div>
     <div id="preview-empty">
       <p>📄</p>
       <p>Select a file</p>
@@ -170,6 +174,7 @@
 </div>
 
 <script src="recents.js"></script>
+<script src="tabs.js"></script>
 <script src="session.js"></script>
 <script src="app.js"></script>
 </body>

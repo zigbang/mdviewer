@@ -10,6 +10,7 @@ Markdown 뷰어 — Electron + marked.js + Mermaid + KaTeX + highlight.js
 - 📊 Mermaid 다이어그램 렌더링 (최신 v11)
 - 🧮 KaTeX 수식 렌더링 (`$...$`, `$$...$$`)
 - 🎨 코드 하이라이팅 (highlight.js)
+- 🗂️ 탭 브라우징 — VS Code 스타일 (단일 클릭=preview, 더블클릭=고정)
 - 사이드바 / 목차 패널 접기·펼치기
 
 ## 단축키
@@ -18,6 +19,9 @@ Markdown 뷰어 — Electron + marked.js + Mermaid + KaTeX + highlight.js
 | `Ctrl+Shift+O` | 폴더 열기 |
 | `Ctrl+B`       | 파일 목록 사이드바 토글 |
 | `Ctrl+T`       | 목차 패널 토글 |
+| `Ctrl+W`       | 활성 탭 닫기 |
+| `Ctrl+Tab` / `Ctrl+Shift+Tab` | 탭 순환 (다음/이전) |
+| `Ctrl+1..9`    | N번째 탭으로 이동 (Ctrl+9 = 마지막) |
 
 ## 실행 방법
 
