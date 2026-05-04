@@ -1,7 +1,26 @@
 use serde::Serialize;
 use std::fs;
 use std::path::Path;
+use std::sync::Mutex;
 use std::time::UNIX_EPOCH;
+use tauri::{Emitter, Manager};
+
+// Files passed to the app at launch (CLI argv on Windows, NSApplication openFiles on macOS
+// via RunEvent::Opened). Drained by the frontend on startup via `take_launch_file`; further
+// opens after launch are pushed live via the `launch-file` event.
+#[derive(Default)]
+struct LaunchFiles(Mutex<Vec<String>>);
+
+fn is_markdown_path(s: &str) -> bool {
+    let p = Path::new(s);
+    p.is_file()
+        && p.extension()
+            .map(|e| {
+                let e = e.to_string_lossy().to_lowercase();
+                e == "md" || e == "markdown"
+            })
+            .unwrap_or(false)
+}
 
 // ── 파일트리 구조 ────────────────────────────────────────
 #[derive(Serialize, Clone)]
@@ -207,12 +226,24 @@ async fn translate_markdown(
         .ok_or_else(|| "Unexpected API response".to_string())
 }
 
+#[tauri::command]
+fn take_launch_file(state: tauri::State<'_, LaunchFiles>) -> Option<String> {
+    let mut v = state.0.lock().unwrap();
+    if v.is_empty() { None } else { Some(v.remove(0)) }
+}
+
 // ── App entry ────────────────────────────────────────────
 
 pub fn run() {
-    tauri::Builder::default()
+    let initial: Vec<String> = std::env::args()
+        .skip(1)
+        .filter(|s| is_markdown_path(s))
+        .collect();
+
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .manage(LaunchFiles::default())
         .invoke_handler(tauri::generate_handler![
             build_file_tree,
             open_folder_dialog,
@@ -224,7 +255,32 @@ pub fn run() {
             open_path_cmd,
             toggle_fullscreen,
             translate_markdown,
+            take_launch_file,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    if !initial.is_empty() {
+        app.state::<LaunchFiles>()
+            .0
+            .lock()
+            .unwrap()
+            .extend(initial);
+    }
+
+    app.run(|app_handle, event| {
+        if let tauri::RunEvent::Opened { urls } = event {
+            let paths: Vec<String> = urls
+                .iter()
+                .filter_map(|u| u.to_file_path().ok())
+                .map(|p| p.to_string_lossy().to_string())
+                .collect();
+            if paths.is_empty() {
+                return;
+            }
+            let state = app_handle.state::<LaunchFiles>();
+            state.0.lock().unwrap().extend(paths.iter().cloned());
+            let _ = app_handle.emit("launch-file", paths);
+        }
+    });
 }

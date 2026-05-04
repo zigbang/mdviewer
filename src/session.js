@@ -41,10 +41,28 @@
     }, 500)
   }
 
-  // Placeholder for future CLI arg / file-association integration.
-  // Returns the absolute path of a file the app was launched with, or null.
+  // Returns the absolute path of a file the app was launched with (CLI argv or
+  // macOS file-association), or null. Drains one entry from the Rust-side queue.
   async function getLaunchFile() {
-    return null
+    try {
+      return await window.__TAURI__.core.invoke('take_launch_file')
+    } catch (e) {
+      console.warn('[launch] take_launch_file failed:', e)
+      return null
+    }
+  }
+
+  // Open a launch-supplied .md: load its parent dir as the workspace tree
+  // (no recents push beyond what openWorkspaceByPath already does) and pin
+  // a tab for the file. Best-effort — falls back to just opening the tab.
+  async function openLaunchFile(filePath) {
+    const parent = filePath.replace(/[\\/][^\\/]+$/, '')
+    if (parent && parent !== filePath) {
+      try { await MDV.app.openWorkspaceByPath(parent) }
+      catch (e) { console.warn('[launch] open parent workspace failed:', e) }
+    }
+    const t = await MDV.tabs.open(filePath, { pinned: true })
+    if (t) await MDV.tabs.activate(t.id)
   }
 
   // Called once after themes/zoom apply during DOMContentLoaded.
@@ -53,8 +71,7 @@
     try {
       const launchFile = await getLaunchFile()
       if (launchFile) {
-        // Future: open the file's parent dir as a temp tree (no workspace save), open file.
-        // For now this branch is unreachable.
+        await openLaunchFile(launchFile)
         return
       }
 
@@ -118,6 +135,21 @@
       if (restoring) return
       scheduleSave()
     })
+  }
+
+  // Live file-association opens after startup (macOS NSApplication openFiles fired
+  // post-launch, e.g. user double-clicks another .md while MDViewer is already running).
+  // Drain the same Rust-side queue rather than relying on the event payload so we avoid
+  // re-opening files already consumed by the startup branch.
+  if (window.__TAURI__ && window.__TAURI__.event && window.__TAURI__.event.listen) {
+    window.__TAURI__.event.listen('launch-file', async () => {
+      while (true) {
+        const p = await getLaunchFile()
+        if (!p) break
+        try { await openLaunchFile(p) }
+        catch (e) { console.warn('[launch] live open failed:', e) }
+      }
+    }).catch(e => console.warn('[launch] listen failed:', e))
   }
 
   NS.session = { getLaunchFile, restoreSession }

@@ -43,3 +43,24 @@ npm run build:win
 
 ## 빌드 결과물
 `dist/` 폴더에 포터블 `.exe` 하나 생성됨 — 설치 없이 더블클릭으로 바로 실행
+
+## macOS — Finder에서 `.md` 더블클릭으로 열기
+
+릴리스 zip의 `MD Viewer.app`은 Apple Developer ID로 정식 서명·공증되지 않아 (GitHub Actions에서 ad-hoc 서명만 함) 다운로드 시 `com.apple.quarantine` 속성이 붙는다. 이 상태로 `.md`를 MDViewer로 열려고 하면 Gatekeeper가 `'<파일>.md'을(를) 열지 않음 — Apple은 ... 악성 코드가 없음을 확인할 수 없습니다.` 다이얼로그를 띄운다.
+
+설치 후 한 번만 실행하면 해결된다:
+
+```bash
+# .app을 /Applications에 복사한 뒤
+./scripts/macos-install.sh
+# 또는 직접:
+xattr -dr com.apple.quarantine "/Applications/MD Viewer.app"
+```
+
+그 다음 Finder에서 `.md` → 우클릭 → 다음으로 열기 → MD Viewer 한 번 선택하거나, "정보 가져오기 → 다음으로 열기 → MD Viewer → 모두 변경"으로 기본 핸들러를 지정한다. 이후 더블클릭이면 바로 열린다.
+
+이미 다운로드한 `.md` 파일 자체에 quarantine이 붙어 있다면 (예: 브라우저로 받은 첨부) 그 파일도 같이 풀어준다:
+
+```bash
+xattr -d com.apple.quarantine /path/to/file.md
+```

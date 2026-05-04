@@ -758,7 +758,7 @@ setInterval(pollOpenFileChanges, FILE_WATCH_INTERVAL_MS)
 // Expose for session.js and tabs.js
 window.MDV = window.MDV || {}
 function getOriginalMarkdown() { return originalMarkdown }
-window.MDV.app = { openWorkspaceByPathRestore, expandDirs, renderPath, showEmpty, showError, adoptRenderedTab, getOriginalMarkdown, clearFindHighlights }
+window.MDV.app = { openWorkspaceByPath, openWorkspaceByPathRestore, expandDirs, renderPath, showEmpty, showError, adoptRenderedTab, getOriginalMarkdown, clearFindHighlights }
 
 btnOpenFolder.addEventListener('click', async () => {
   const result = await invoke('open_folder_dialog')

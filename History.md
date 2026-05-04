@@ -1,5 +1,15 @@
 # MDViewer Release History
 
+## V2.4.0
+
+### Changes
+- File-association handling — `.md` / `.markdown` register as `Viewer` document types so Finder/Explorer can route double-clicks to MDViewer. CLI argv (Windows) and macOS `RunEvent::Opened` (NSApplication openFiles) feed a Rust-side launch-file queue that the frontend drains at startup via `take_launch_file` and live via the `launch-file` event. Launching with a file opens its parent dir as the workspace tree and pins the file as the active tab.
+
+### macOS notes
+- Releases are ad-hoc signed only (no Apple Developer ID), so downloaded `.app` bundles carry `com.apple.quarantine` and Sequoia's Gatekeeper blocks document opens through them with the `'<file>.md'을(를) 열지 않음` dialog. Run `scripts/macos-install.sh` (or `xattr -dr com.apple.quarantine "/Applications/MD Viewer.app"`) once after installing to clear it. See README → macOS section.
+
+---
+
 ## V2.3.0
 
 ### Changes
