@@ -3,7 +3,9 @@ use std::fs;
 use std::path::Path;
 use std::sync::Mutex;
 use std::time::UNIX_EPOCH;
-use tauri::{Emitter, Manager};
+#[cfg(target_os = "macos")]
+use tauri::Emitter;
+use tauri::Manager;
 
 // Files passed to the app at launch (CLI argv on Windows, NSApplication openFiles on macOS
 // via RunEvent::Opened). Drained by the frontend on startup via `take_launch_file`; further
@@ -268,8 +270,13 @@ pub fn run() {
             .extend(initial);
     }
 
-    app.run(|app_handle, event| {
-        if let tauri::RunEvent::Opened { urls } = event {
+    app.run(|_app_handle, _event| {
+        // RunEvent::Opened is macOS-only — fired by NSApplication openFiles when a
+        // .md is double-clicked / dragged onto the running app. Windows passes the
+        // path via argv on launch (handled above), so the post-startup branch is
+        // not needed there.
+        #[cfg(target_os = "macos")]
+        if let tauri::RunEvent::Opened { urls } = _event {
             let paths: Vec<String> = urls
                 .iter()
                 .filter_map(|u| u.to_file_path().ok())
@@ -278,9 +285,9 @@ pub fn run() {
             if paths.is_empty() {
                 return;
             }
-            let state = app_handle.state::<LaunchFiles>();
+            let state = _app_handle.state::<LaunchFiles>();
             state.0.lock().unwrap().extend(paths.iter().cloned());
-            let _ = app_handle.emit("launch-file", paths);
+            let _ = _app_handle.emit("launch-file", paths);
         }
     });
 }
