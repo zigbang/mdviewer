@@ -122,18 +122,6 @@
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         ▾
       </button>
-      <div id="recent-dropdown" class="recent-dropdown hidden" role="menu">
-        <div class="recent-section">
-          <div class="recent-section-title">Recent Workspaces</div>
-          <div id="recent-ws-list" class="recent-list"></div>
-        </div>
-        <div class="recent-section">
-          <div class="recent-section-title">Recent Files</div>
-          <div id="recent-files-list" class="recent-list"></div>
-        </div>
-        <div class="recent-divider"></div>
-        <button id="btn-clear-recents" class="recent-action" role="menuitem">Clear Recent</button>
-      </div>
     </div>
     <div id="file-tree">
       <div class="empty-hint">
@@ -171,6 +159,20 @@
 <!-- Drop overlay -->
 <div id="drop-overlay">
   <div id="drop-message">Drop .md files here</div>
+</div>
+
+<!-- Recent dropdown (hoisted out of sidebar to escape overflow:hidden clipping) -->
+<div id="recent-dropdown" class="recent-dropdown hidden" role="menu">
+  <div class="recent-section">
+    <div class="recent-section-title">Recent Workspaces</div>
+    <div id="recent-ws-list" class="recent-list"></div>
+  </div>
+  <div class="recent-section">
+    <div class="recent-section-title">Recent Files</div>
+    <div id="recent-files-list" class="recent-list"></div>
+  </div>
+  <div class="recent-divider"></div>
+  <button id="btn-clear-recents" class="recent-action" role="menuitem">Clear Recent</button>
 </div>
 
 <script src="recents.js"></script>

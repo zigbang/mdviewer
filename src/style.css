@@ -706,10 +706,10 @@ html, body {
 
 /* ── Recent dropdown ────────────────────────────── */
 .recent-dropdown {
-  position: absolute;
+  position: fixed;
   top: 40px;
   left: 8px;
-  z-index: 100;
+  z-index: 1000;
   min-width: 360px;
   max-width: 520px;
   max-height: 70vh;

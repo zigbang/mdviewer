@@ -763,6 +763,9 @@ async function showRecentDropdown() {
     renderRecentList(recentWsList,    MDV.recents.loadRecentWorkspaces(), pickWorkspace),
     renderRecentList(recentFilesList, MDV.recents.loadRecentFiles(),      pickFile),
   ])
+  const r = btnRecent.getBoundingClientRect()
+  recentDropdown.style.top  = `${Math.round(r.bottom + 4)}px`
+  recentDropdown.style.left = `${Math.round(r.left)}px`
   recentDropdown.classList.remove('hidden')
   btnRecent.setAttribute('aria-expanded', 'true')
 }
