@@ -1,5 +1,12 @@
 # MDViewer Release History
 
+## V2.2.1
+
+### Changes
+- App icon refresh: Zigbang house+ring base, with the new "MD" + magnifying-glass mark composited into the white center
+
+---
+
 ## V2.2.0
 
 ### Changes
