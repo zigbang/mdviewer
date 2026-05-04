@@ -1,5 +1,14 @@
 # MDViewer Release History
 
+## V2.3.0
+
+### Changes
+- Sidebar file search filters the loaded workspace tree by markdown filename, with optional regex matching
+- Per-tab text find bar with highlighted matches, previous/next navigation, and match counters
+- Text find supports rendered visible-text mode by default, Markdown source counting as an option, and case-sensitive matching as an option
+
+---
+
 ## V2.2.1
 
 ### Changes

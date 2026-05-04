@@ -207,6 +207,83 @@ html, body {
 }
 #sidebar-header button:hover { background: var(--bg3); color: var(--text); }
 
+#file-search-panel {
+  border-bottom: 1px solid var(--border);
+  padding: 8px;
+  background: var(--bg2);
+  flex-shrink: 0;
+}
+#file-search-panel.hidden { display: none; }
+#file-search-panel.disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.file-search-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#file-search-input,
+#viewer-find-input {
+  min-width: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  font: inherit;
+  outline: none;
+}
+
+#file-search-input {
+  width: 100%;
+  height: 26px;
+  padding: 4px 8px;
+}
+
+#file-search-input:focus,
+#viewer-find-input:focus {
+  border-color: var(--accent);
+}
+
+#btn-file-search-clear {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+#btn-file-search-clear:hover { background: var(--bg3); color: var(--text); }
+
+.search-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  color: var(--text-dim);
+  font-size: 11px;
+  user-select: none;
+}
+.search-option input { accent-color: var(--accent); }
+
+#file-search-status {
+  min-height: 15px;
+  margin-top: 4px;
+  color: var(--text-dim);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#file-search-status.error { color: var(--mermaid-err); }
+
 #file-tree {
   flex: 1;
   overflow-y: auto;
@@ -284,6 +361,70 @@ html, body {
   overflow-y: auto;
   position: relative;
   background: var(--bg);
+}
+
+#viewer-find-bar {
+  position: sticky;
+  top: 48px;
+  right: 8px;
+  z-index: 20;
+  float: right;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  max-width: min(680px, calc(100% - 16px));
+  margin: 48px 8px -82px 8px;
+  padding: 6px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+#viewer-find-bar.hidden { display: none; }
+
+#viewer-find-input {
+  width: 210px;
+  height: 26px;
+  padding: 4px 8px;
+}
+
+#viewer-find-count {
+  min-width: 52px;
+  color: var(--text-dim);
+  font-size: 11px;
+  text-align: center;
+  white-space: nowrap;
+}
+#viewer-find-count.warning { color: var(--mermaid-err); min-width: 128px; }
+
+#viewer-find-bar button {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+#viewer-find-bar button:hover:not(:disabled) { background: var(--bg3); color: var(--text); }
+#viewer-find-bar button:disabled { opacity: 0.35; cursor: default; }
+#viewer-find-bar button svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+#viewer-find-bar .search-option {
+  margin-top: 0;
+  white-space: nowrap;
 }
 
 #preview-empty {
@@ -441,6 +582,18 @@ html, body {
 
 #preview a { color: var(--link-color); text-decoration: none; }
 #preview a:hover { text-decoration: underline; }
+
+#preview .mdv-find-mark {
+  background: #ffe066;
+  color: #1e1e1e;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+#preview .mdv-find-mark.current {
+  background: #ffb000;
+  outline: 1px solid #fff3bf;
+  outline-offset: 1px;
+}
 
 #preview img {
   max-width: 100%;
@@ -666,6 +819,68 @@ html, body {
   font-weight: 600;
 }
 
+/* ── Reload modal ─────────────────────────────────────── */
+#reload-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 10000;
+}
+#reload-overlay.hidden { display: none; }
+
+#reload-modal {
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+  padding: 18px;
+}
+
+#reload-title {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+#reload-message,
+#reload-note {
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+#reload-note {
+  min-height: 18px;
+  margin-top: 8px;
+  color: var(--mermaid-err);
+}
+
+#reload-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+#reload-actions button {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 12px;
+  color: var(--text);
+  background: var(--bg3);
+  cursor: pointer;
+  font-size: 12px;
+}
+#reload-actions button:hover { background: var(--accent-hover); color: #fff; }
+#reload-ok { background: var(--accent) !important; color: #fff !important; }
+
 /* ── 드롭 파일 목록 — 디렉토리 헤더 ────────────────────── */
 .tree-dir-header {
   padding: 6px 12px 3px;
@@ -807,3 +1022,5 @@ html, body {
 .tab.missing .tab-title { text-decoration: line-through; }
 .tab.missing::before    { content: ''; width: 6px; height: 6px; border-radius: 50%;
                           background: #f48771; margin-right: 6px; flex-shrink: 0; }
+.tab.dirty::before      { content: ''; width: 6px; height: 6px; border-radius: 50%;
+                          background: #ffb000; margin-right: 6px; flex-shrink: 0; }

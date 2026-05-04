@@ -50,6 +50,9 @@
     <button id="btn-refresh" title="Refresh (F5)">
       <svg viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
     </button>
+    <button id="btn-viewer-find" title="Find in File (Ctrl+F)">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+    </button>
   </div>
   <button id="btn-toggle-toc" title="Toggle TOC (Ctrl+T)">
     <svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
@@ -63,7 +66,7 @@
 <!-- ── About 모달 ─────────────────────────────────────── -->
 <div id="about-overlay">
   <div id="about-modal">
-    <div id="about-version">MD Viewer v2.2.1</div>
+    <div id="about-version">MD Viewer v2.3.0</div>
     <p id="about-text"><em>for Device Engineering</em></p>
     <table id="about-shortcuts">
       <tr><td><kbd>Ctrl</kbd>+<kbd>B</kbd></td><td>Toggle Sidebar</td></tr>
@@ -73,6 +76,9 @@
       <tr><td><kbd>Ctrl</kbd>+<kbd>=</kbd></td><td>Reset Zoom</td></tr>
       <tr><td><kbd>F5</kbd></td><td>Refresh</td></tr>
       <tr><td><kbd>F11</kbd></td><td>Fullscreen</td></tr>
+      <tr><td><kbd>Ctrl</kbd>+<kbd>F</kbd></td><td>Find in Current Tab</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>Next Find Match</td></tr>
+      <tr><td><kbd>Shift</kbd>+<kbd>Enter</kbd></td><td>Previous Find Match</td></tr>
       <tr><td><kbd>Page Up</kbd>/<kbd>Down</kbd></td><td>Scroll Page</td></tr>
       <tr><td><kbd>Home</kbd>/<kbd>End</kbd></td><td>Scroll to Top/Bottom</td></tr>
       <tr><td><kbd>Alt</kbd>+<kbd>←</kbd>/<kbd>→</kbd></td><td>Navigate Back/Forward</td></tr>
@@ -115,6 +121,9 @@
   <div id="sidebar">
     <div id="sidebar-header">
       <span id="sidebar-root-name">Files</span>
+      <button id="btn-file-search" title="Find File">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      </button>
       <button id="btn-open-folder" title="Open Folder (Ctrl+Shift+O)">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
       </button>
@@ -122,6 +131,19 @@
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         ▾
       </button>
+    </div>
+    <div id="file-search-panel" class="hidden">
+      <div class="file-search-row">
+        <input id="file-search-input" type="text" placeholder="Find file name">
+        <button id="btn-file-search-clear" title="Clear">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <label class="search-option">
+        <input id="file-search-regex" type="checkbox">
+        <span>Regex</span>
+      </label>
+      <div id="file-search-status"></div>
     </div>
     <div id="file-tree">
       <div class="empty-hint">
@@ -138,6 +160,27 @@
   <!-- MD 미리보기 -->
   <div id="preview-wrap">
     <div id="tab-bar"></div>
+    <div id="viewer-find-bar" class="hidden">
+      <input id="viewer-find-input" type="text" placeholder="Find in current tab">
+      <span id="viewer-find-count">0 / 0</span>
+      <button id="viewer-find-prev" type="button" title="Previous (Shift+Enter)">
+        <svg viewBox="0 0 24 24"><path d="M18 15l-6-6-6 6"/></svg>
+      </button>
+      <button id="viewer-find-next" type="button" title="Next (Enter)">
+        <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <label class="search-option">
+        <input id="viewer-find-markdown" type="checkbox">
+        <span>Markdown</span>
+      </label>
+      <label class="search-option">
+        <input id="viewer-find-case" type="checkbox">
+        <span>Case</span>
+      </label>
+      <button id="viewer-find-close" type="button" title="Close">
+        <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
     <div id="preview-empty">
       <p>📄</p>
       <p>Select a file</p>
@@ -159,6 +202,19 @@
 <!-- Drop overlay -->
 <div id="drop-overlay">
   <div id="drop-message">Drop .md files here</div>
+</div>
+
+<!-- File changed modal -->
+<div id="reload-overlay" class="hidden">
+  <div id="reload-modal">
+    <div id="reload-title">File changed on disk</div>
+    <div id="reload-message">Reload the latest version?</div>
+    <div id="reload-note"></div>
+    <div id="reload-actions">
+      <button id="reload-cancel" type="button">Not Now</button>
+      <button id="reload-ok" type="button">Reload</button>
+    </div>
+  </div>
 </div>
 
 <!-- Recent dropdown (hoisted out of sidebar to escape overflow:hidden clipping) -->

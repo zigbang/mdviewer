@@ -42,6 +42,12 @@ let currentFilePath     = null
 let currentWorkspaceRoot = null
 let sidebarVisible      = true
 let tocVisible          = true
+let currentWorkspaceTree = null
+let fileSearchActive    = false
+let fileSearchEnabled   = true
+let fileSearchSavedExpandedDirs = null
+let activeFindMarks     = []
+let activeSourceTotal   = 0
 
 // ── DOM 레퍼런스 ─────────────────────────────────────────
 const sidebar         = document.getElementById('sidebar')
@@ -59,6 +65,26 @@ const zoomControls    = document.getElementById('zoom-controls')
 const zoomLevelEl     = document.getElementById('zoom-level')
 const btnZoomIn       = document.getElementById('btn-zoom-in')
 const btnZoomOut      = document.getElementById('btn-zoom-out')
+const btnFileSearch   = document.getElementById('btn-file-search')
+const fileSearchPanel = document.getElementById('file-search-panel')
+const fileSearchInput = document.getElementById('file-search-input')
+const btnFileSearchClear = document.getElementById('btn-file-search-clear')
+const fileSearchRegex = document.getElementById('file-search-regex')
+const fileSearchStatus = document.getElementById('file-search-status')
+const btnViewerFind   = document.getElementById('btn-viewer-find')
+const viewerFindBar   = document.getElementById('viewer-find-bar')
+const viewerFindInput = document.getElementById('viewer-find-input')
+const viewerFindCount = document.getElementById('viewer-find-count')
+const viewerFindPrev  = document.getElementById('viewer-find-prev')
+const viewerFindNext  = document.getElementById('viewer-find-next')
+const viewerFindMarkdown = document.getElementById('viewer-find-markdown')
+const viewerFindCase  = document.getElementById('viewer-find-case')
+const viewerFindClose = document.getElementById('viewer-find-close')
+const reloadOverlay   = document.getElementById('reload-overlay')
+const reloadMessage   = document.getElementById('reload-message')
+const reloadNote      = document.getElementById('reload-note')
+const reloadCancel    = document.getElementById('reload-cancel')
+const reloadOk        = document.getElementById('reload-ok')
 
 // ── 로고 클릭 → 외부 브라우저 ────────────────────────────
 document.getElementById('toolbar-logo').addEventListener('click', () => {
@@ -151,7 +177,7 @@ document.getElementById('translate-ok').addEventListener('click', async () => {
     const name = currentFilePath.split(/[\\/]/).pop()
     fileNameText.textContent = name + ' (Translated)'
     setWindowTitle(name + ' (Translated)', currentFilePath)
-    renderMarkdown(translated)
+    renderMarkdown(translated).then(() => runFindForActiveTab({ preserveIndex: true }))
   } catch (err) {
     translateStatus.textContent = err
     translateStatus.className = 'error'
@@ -171,7 +197,9 @@ function applyTheme(theme, rerender) {
   iconMoon.style.display = theme === 'dark'  ? 'block' : 'none'
   localStorage.setItem('md-viewer-theme', theme)
   initMermaid(theme === 'dark')
-  if (rerender && originalMarkdown) renderMarkdown(originalMarkdown)
+  if (rerender && originalMarkdown) {
+    renderMarkdown(originalMarkdown).then(() => runFindForActiveTab({ preserveIndex: true }))
+  }
 }
 
 btnTheme.addEventListener('click', () => {
@@ -213,8 +241,22 @@ btnToggleToc.addEventListener('click', () => {
   document.getElementById('resize-toc').classList.toggle('hidden', !tocVisible)
 })
 
+function isEditableTarget(target) {
+  if (!target) return false
+  const tag = target.tagName ? target.tagName.toLowerCase() : ''
+  return tag === 'input' || tag === 'textarea' || tag === 'select' || target.isContentEditable
+}
+
 // 단축키
 document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+    e.preventDefault()
+    openViewerFindBar()
+    return
+  }
+  const editing = isEditableTarget(e.target)
+  if (editing && !e.altKey) return
+
   if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
     e.preventDefault()
     btnToggleSidebar.click()
@@ -287,6 +329,8 @@ previewWrapEl.addEventListener('scroll', () => {
 async function openWorkspaceByPath(rootPath, prebuiltTree) {
   const tree = prebuiltTree != null ? prebuiltTree : await invoke('build_file_tree', { dirPath: rootPath })
   if (!tree) return
+  clearFileSearch({ closePanel: false, resetEnabled: false })
+  setFileSearchEnabled(true)
   renderFileTree(tree, rootPath)
   MDV.recents.pushRecentWorkspace(rootPath)
   // saveSessionNow cancels any in-flight debounced saveSession (e.g. stale expandedDirs from old workspace).
@@ -301,6 +345,8 @@ async function openWorkspaceByPath(rootPath, prebuiltTree) {
 async function openWorkspaceByPathRestore(rootPath) {
   const tree = await invoke('build_file_tree', { dirPath: rootPath })
   if (!tree) return
+  clearFileSearch({ closePanel: false, resetEnabled: false })
+  setFileSearchEnabled(true)
   renderFileTree(tree, rootPath)
   // Do NOT push recents (already there) and do NOT reset session.
 }
@@ -332,6 +378,7 @@ function expandDirs(relPaths) {
 async function renderPath(filePath, { pushRecent = true } = {}) {
   try {
     const content = await invoke('read_file', { filePath })
+    const modifiedMs = await invoke('file_modified_ms', { filePath }).catch(() => null)
     originalMarkdown = content
     currentFilePath = filePath
     const name = filePath.split(/[\\/]/).pop()
@@ -343,7 +390,7 @@ async function renderPath(filePath, { pushRecent = true } = {}) {
     if (treeEl) treeEl.classList.add('active')
     if (pushRecent) MDV.recents.pushRecentFile(filePath)
     await renderMarkdown(content)
-    return { ok: true }
+    return { ok: true, modifiedMs }
   } catch (err) {
     currentFilePath = null
     const missingName = filePath.split(/[\\/]/).pop()
@@ -357,6 +404,8 @@ async function renderPath(filePath, { pushRecent = true } = {}) {
 
 // ── Empty / error state helpers (called by tabs.js) ─────────
 function showEmpty() {
+  clearFindHighlights()
+  activeSourceTotal = 0
   preview.style.display = 'none'
   preview.innerHTML = ''
   previewEmpty.classList.remove('hidden')
@@ -365,6 +414,8 @@ function showEmpty() {
 }
 
 function showError(filePath) {
+  clearFindHighlights()
+  activeSourceTotal = 0
   previewEmpty.classList.add('hidden')
   preview.style.display = 'block'
   preview.innerHTML = `<div style="padding:40px;color:var(--text-dim);text-align:center">
@@ -374,6 +425,7 @@ function showError(filePath) {
 }
 
 function adoptRenderedTab(filePath, markdownSource) {
+  clearFindHighlights()
   currentFilePath = filePath
   originalMarkdown = markdownSource
   const name = filePath.split(/[\\/]/).pop()
@@ -386,10 +438,327 @@ function adoptRenderedTab(filePath, markdownSource) {
   buildToc()
 }
 
+// ── 현재 탭 텍스트 찾기 ──────────────────────────────────
+function openViewerFindBar() {
+  if (MDV.tabs.setFindState) MDV.tabs.setFindState({ visible: true })
+  viewerFindBar.classList.remove('hidden')
+  syncFindBarFromActiveTab()
+  viewerFindInput.focus()
+  viewerFindInput.select()
+  runFindForActiveTab({ preserveIndex: true })
+}
+
+function closeViewerFindBar({ clearCurrent = true } = {}) {
+  if (MDV.tabs.setFindState) MDV.tabs.setFindState({ visible: false })
+  viewerFindBar.classList.add('hidden')
+  clearFindHighlights()
+  activeSourceTotal = 0
+  if (clearCurrent) {
+    activeFindMarks.forEach(mark => mark.classList.remove('current'))
+  }
+  updateFindCount()
+}
+
+function syncFindBarFromActiveTab() {
+  const state = MDV.tabs.getFindState ? MDV.tabs.getFindState() : { visible: false, query: '', sourceMode: 'rendered', caseSensitive: false }
+  viewerFindBar.classList.toggle('hidden', !state.visible)
+  viewerFindInput.value = state.query || ''
+  viewerFindMarkdown.checked = state.sourceMode === 'markdown'
+  viewerFindCase.checked = !!state.caseSensitive
+  updateFindCount()
+}
+
+function clearFindHighlights() {
+  const marks = Array.from(preview.querySelectorAll('.mdv-find-mark'))
+  marks.forEach(mark => {
+    const parent = mark.parentNode
+    if (!parent) return
+    parent.replaceChild(document.createTextNode(mark.textContent), mark)
+    parent.normalize()
+  })
+  activeFindMarks = []
+}
+
+function normalizeForFind(text, caseSensitive) {
+  return caseSensitive ? text : text.toLowerCase()
+}
+
+function countPlainMatches(text, query, caseSensitive) {
+  if (!text || !query) return 0
+  const haystack = normalizeForFind(text, caseSensitive)
+  const needle = normalizeForFind(query, caseSensitive)
+  let count = 0
+  let from = 0
+  while (needle && from <= haystack.length) {
+    const idx = haystack.indexOf(needle, from)
+    if (idx < 0) break
+    count++
+    from = idx + needle.length
+  }
+  return count
+}
+
+function isFindSkippableNode(node) {
+  if (!node || node.nodeType !== Node.ELEMENT_NODE) return false
+  if (node.classList && node.classList.contains('mdv-find-mark')) return true
+  return ['SCRIPT', 'STYLE', 'TEXTAREA'].includes(node.tagName)
+}
+
+function wrapMatchesInTextNode(textNode, query, caseSensitive) {
+  const text = textNode.nodeValue
+  const haystack = normalizeForFind(text, caseSensitive)
+  const needle = normalizeForFind(query, caseSensitive)
+  const ranges = []
+  let from = 0
+  while (needle && from <= haystack.length) {
+    const idx = haystack.indexOf(needle, from)
+    if (idx < 0) break
+    ranges.push([idx, idx + needle.length])
+    from = idx + needle.length
+  }
+  if (!ranges.length) return []
+
+  const frag = document.createDocumentFragment()
+  const marks = []
+  let pos = 0
+  ranges.forEach(([start, end]) => {
+    if (start > pos) frag.appendChild(document.createTextNode(text.slice(pos, start)))
+    const mark = document.createElement('span')
+    mark.className = 'mdv-find-mark'
+    mark.textContent = text.slice(start, end)
+    marks.push(mark)
+    frag.appendChild(mark)
+    pos = end
+  })
+  if (pos < text.length) frag.appendChild(document.createTextNode(text.slice(pos)))
+  textNode.parentNode.replaceChild(frag, textNode)
+  return marks
+}
+
+function applyRenderedFind(query, { caseSensitive }) {
+  const textNodes = []
+  const walker = document.createTreeWalker(preview, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      if (!node.nodeValue) return NodeFilter.FILTER_REJECT
+      let p = node.parentElement
+      while (p && p !== preview) {
+        if (isFindSkippableNode(p)) return NodeFilter.FILTER_REJECT
+        p = p.parentElement
+      }
+      return NodeFilter.FILTER_ACCEPT
+    }
+  })
+  while (walker.nextNode()) textNodes.push(walker.currentNode)
+  return textNodes.flatMap(node => wrapMatchesInTextNode(node, query, caseSensitive))
+}
+
+function updateFindCount() {
+  const state = MDV.tabs.getFindState ? MDV.tabs.getFindState() : { sourceMode: 'rendered', currentIndex: -1 }
+  const visibleTotal = activeFindMarks.length
+  viewerFindCount.classList.remove('warning')
+  if (!state.query) {
+    viewerFindCount.textContent = '0 / 0'
+  } else if (state.sourceMode === 'markdown' && activeSourceTotal !== visibleTotal) {
+    viewerFindCount.classList.add('warning')
+    viewerFindCount.textContent = visibleTotal
+      ? `${Math.max(0, state.currentIndex + 1)} / ${visibleTotal} visible · ${activeSourceTotal} source`
+      : `0 visible · ${activeSourceTotal} source`
+  } else {
+    viewerFindCount.textContent = visibleTotal ? `${state.currentIndex + 1} / ${visibleTotal}` : '0 / 0'
+  }
+  const canMove = visibleTotal > 0
+  viewerFindPrev.disabled = !canMove
+  viewerFindNext.disabled = !canMove
+}
+
+function setCurrentFindMark(index) {
+  activeFindMarks.forEach(mark => mark.classList.remove('current'))
+  if (!activeFindMarks.length) {
+    MDV.tabs.setFindState({ currentIndex: -1 })
+    updateFindCount()
+    return
+  }
+  const next = Math.max(0, Math.min(activeFindMarks.length - 1, index))
+  activeFindMarks[next].classList.add('current')
+  MDV.tabs.setFindState({ currentIndex: next })
+  updateFindCount()
+}
+
+function runFindForActiveTab({ preserveIndex = false } = {}) {
+  clearFindHighlights()
+  const state = MDV.tabs.getFindState ? MDV.tabs.getFindState() : null
+  if (!state || !state.visible || !state.query) {
+    activeSourceTotal = 0
+    updateFindCount()
+    return
+  }
+
+  if (state.sourceMode === 'markdown') {
+    activeSourceTotal = countPlainMatches(originalMarkdown || '', state.query, state.caseSensitive)
+  } else {
+    activeSourceTotal = 0
+  }
+  activeFindMarks = applyRenderedFind(state.query, { caseSensitive: state.caseSensitive })
+  const wantedIndex = preserveIndex && state.currentIndex >= 0 ? state.currentIndex : 0
+  setCurrentFindMark(activeFindMarks.length ? wantedIndex : -1)
+}
+
+function goToFindMatch(delta) {
+  if (!activeFindMarks.length) return
+  const state = MDV.tabs.getFindState()
+  const current = state.currentIndex >= 0 ? state.currentIndex : 0
+  const next = (current + delta + activeFindMarks.length) % activeFindMarks.length
+  setCurrentFindMark(next)
+  activeFindMarks[next].scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
+
+function updateActiveFindStateFromControls({ resetIndex = true } = {}) {
+  MDV.tabs.setFindState({
+    query: viewerFindInput.value,
+    sourceMode: viewerFindMarkdown.checked ? 'markdown' : 'rendered',
+    caseSensitive: viewerFindCase.checked,
+    currentIndex: resetIndex ? -1 : MDV.tabs.getFindState().currentIndex
+  })
+  runFindForActiveTab({ preserveIndex: !resetIndex })
+}
+
+btnViewerFind.addEventListener('click', openViewerFindBar)
+viewerFindInput.addEventListener('input', () => updateActiveFindStateFromControls())
+viewerFindMarkdown.addEventListener('change', () => updateActiveFindStateFromControls())
+viewerFindCase.addEventListener('change', () => updateActiveFindStateFromControls())
+viewerFindPrev.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); goToFindMatch(-1) })
+viewerFindNext.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); goToFindMatch(1) })
+viewerFindClose.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); closeViewerFindBar() })
+viewerFindInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault()
+    goToFindMatch(e.shiftKey ? -1 : 1)
+  }
+  if (e.key === 'Escape') {
+    e.preventDefault()
+    closeViewerFindBar()
+  }
+})
+MDV.tabs.on('activate', () => {
+  syncFindBarFromActiveTab()
+  const state = MDV.tabs.getFindState ? MDV.tabs.getFindState() : null
+  if (state && state.visible) runFindForActiveTab({ preserveIndex: true })
+  else {
+    clearFindHighlights()
+    activeSourceTotal = 0
+    updateFindCount()
+  }
+  handleActiveTabExternalDirty()
+})
+
+// ── 외부 파일 변경 감지 / Reload 확인 ─────────────────────
+const FILE_WATCH_INTERVAL_MS = 2000
+let fileWatchRunning = false
+let reloadPrompt = { open: false, tabId: null }
+
+function updateReloadPromptNote(tab) {
+  reloadNote.textContent = tab && tab.changedWhilePromptOpen
+    ? 'The file changed again while this prompt was open. Reload will read the latest version.'
+    : ''
+}
+
+function closeReloadPrompt() {
+  reloadPrompt = { open: false, tabId: null }
+  reloadOverlay.classList.add('hidden')
+  reloadNote.textContent = ''
+}
+
+function maybeShowReloadPrompt(tab) {
+  if (!tab || !tab.externalDirty || tab.reloadPromptDismissed) return
+  const active = MDV.tabs.active()
+  if (!active || active.id !== tab.id) return
+  if (reloadPrompt.open) {
+    if (reloadPrompt.tabId === tab.id) updateReloadPromptNote(tab)
+    return
+  }
+  reloadPrompt = { open: true, tabId: tab.id }
+  reloadMessage.textContent = `${basename(tab.path)} changed on disk. Reload the latest version?`
+  updateReloadPromptNote(tab)
+  reloadOverlay.classList.remove('hidden')
+}
+
+function markTabChanged(tab, modifiedMs) {
+  const samePrompt = reloadPrompt.open && reloadPrompt.tabId === tab.id
+  MDV.tabs.setExternalState(tab.id, {
+    externalDirty: true,
+    detectedMtime: modifiedMs,
+    changedWhilePromptOpen: !!samePrompt || !!tab.changedWhilePromptOpen,
+    reloadPromptDismissed: tab.detectedMtime === modifiedMs ? !!tab.reloadPromptDismissed : false
+  })
+  const updated = MDV.tabs.list().find(t => t.id === tab.id)
+  if (samePrompt) updateReloadPromptNote(updated)
+  maybeShowReloadPrompt(updated)
+}
+
+async function pollOpenFileChanges() {
+  if (fileWatchRunning) return
+  fileWatchRunning = true
+  try {
+    const tabs = MDV.tabs.list().filter(t => t.path && !t.missing)
+    await Promise.all(tabs.map(async tab => {
+      let modifiedMs
+      try {
+        modifiedMs = await invoke('file_modified_ms', { filePath: tab.path })
+      } catch (_) {
+        return
+      }
+      if (!tab.loadedMtime) {
+        MDV.tabs.setExternalState(tab.id, { loadedMtime: modifiedMs })
+        return
+      }
+      if (modifiedMs > tab.loadedMtime && modifiedMs !== tab.detectedMtime) {
+        markTabChanged(tab, modifiedMs)
+      }
+    }))
+  } finally {
+    fileWatchRunning = false
+  }
+}
+
+function handleActiveTabExternalDirty() {
+  const tab = MDV.tabs.active()
+  if (!tab || !tab.externalDirty) return
+  if (tab.reloadPromptDismissed) {
+    MDV.tabs.setExternalState(tab.id, { reloadPromptDismissed: false })
+  }
+  maybeShowReloadPrompt(MDV.tabs.active())
+}
+
+reloadCancel.addEventListener('click', e => {
+  e.preventDefault()
+  const tabId = reloadPrompt.tabId
+  if (tabId) MDV.tabs.setExternalState(tabId, { reloadPromptDismissed: true, changedWhilePromptOpen: false })
+  closeReloadPrompt()
+})
+
+reloadOk.addEventListener('click', async e => {
+  e.preventDefault()
+  const tabId = reloadPrompt.tabId
+  closeReloadPrompt()
+  const tab = MDV.tabs.list().find(t => t.id === tabId)
+  if (!tab) return
+  MDV.tabs.setExternalState(tab.id, {
+    renderedHTML: null,
+    missing: false,
+    externalDirty: false,
+    changedWhilePromptOpen: false,
+    reloadPromptDismissed: false
+  })
+  await MDV.tabs.activate(tab.id)
+  runFindForActiveTab({ preserveIndex: true })
+})
+
+setInterval(pollOpenFileChanges, FILE_WATCH_INTERVAL_MS)
+
 // Expose for session.js and tabs.js
 window.MDV = window.MDV || {}
 function getOriginalMarkdown() { return originalMarkdown }
-window.MDV.app = { openWorkspaceByPathRestore, expandDirs, renderPath, showEmpty, showError, adoptRenderedTab, getOriginalMarkdown }
+window.MDV.app = { openWorkspaceByPathRestore, expandDirs, renderPath, showEmpty, showError, adoptRenderedTab, getOriginalMarkdown, clearFindHighlights }
 
 btnOpenFolder.addEventListener('click', async () => {
   const result = await invoke('open_folder_dialog')
@@ -402,9 +771,133 @@ if (btnOpenFolderEmpty) {
   btnOpenFolderEmpty.addEventListener('click', () => btnOpenFolder.click())
 }
 
+// ── 파일 이름 검색 ──────────────────────────────────────
+function basename(path) {
+  if (!path) return ''
+  const m = String(path).match(/[^\\/]+$/)
+  return m ? m[0] : String(path)
+}
+
+function captureExpandedDirs() {
+  if (!currentWorkspaceRoot) return []
+  const root = currentWorkspaceRoot
+  const expanded = []
+  fileTree.querySelectorAll('.tree-dir-row.open').forEach(row => {
+    const abs = row.dataset.path
+    if (!abs) return
+    let rel = abs.startsWith(root) ? abs.slice(root.length) : abs
+    rel = rel.replace(/^[\\/]+/, '').replace(/\\/g, '/')
+    if (rel) expanded.push(rel)
+  })
+  return expanded
+}
+
+function showFileSearchStatus(text, className = '') {
+  fileSearchStatus.textContent = text || ''
+  fileSearchStatus.className = className
+}
+
+function setFileSearchEnabled(enabled) {
+  fileSearchEnabled = enabled
+  fileSearchPanel.classList.toggle('disabled', !enabled)
+  btnFileSearch.disabled = !enabled
+}
+
+function openFileSearchPanel() {
+  if (!fileSearchEnabled) return
+  fileSearchPanel.classList.remove('hidden')
+  fileSearchInput.focus()
+  fileSearchInput.select()
+}
+
+function clearFileSearch({ closePanel = false, resetEnabled = false } = {}) {
+  fileSearchActive = false
+  fileSearchSavedExpandedDirs = null
+  fileSearchInput.value = ''
+  fileSearchRegex.checked = false
+  showFileSearchStatus('')
+  if (closePanel) fileSearchPanel.classList.add('hidden')
+  if (resetEnabled) setFileSearchEnabled(true)
+  if (currentWorkspaceTree && currentWorkspaceRoot) {
+    renderFileTree(currentWorkspaceTree, currentWorkspaceRoot, { restoreExpandedDirs: captureExpandedDirs() })
+  }
+}
+
+function makeFileMatcher(query, useRegex) {
+  if (!useRegex) {
+    const needle = query.toLowerCase()
+    return name => name.toLowerCase().includes(needle)
+  }
+  const re = new RegExp(query, 'i')
+  return name => re.test(name)
+}
+
+function filterTreeByName(node, matches) {
+  if (!node) return null
+  if (node.type === 'file') return matches(node.name || basename(node.path)) ? Object.assign({}, node) : null
+  const children = (node.children || []).map(child => filterTreeByName(child, matches)).filter(Boolean)
+  return children.length ? Object.assign({}, node, { children }) : null
+}
+
+function applyFileSearch() {
+  if (!fileSearchEnabled || !currentWorkspaceTree || !currentWorkspaceRoot) return
+  const query = fileSearchInput.value.trim()
+  showFileSearchStatus('')
+  if (!query) {
+    fileSearchActive = false
+    const restore = fileSearchSavedExpandedDirs || captureExpandedDirs()
+    fileSearchSavedExpandedDirs = null
+    renderFileTree(currentWorkspaceTree, currentWorkspaceRoot, { restoreExpandedDirs: restore })
+    return
+  }
+
+  let matcher
+  try {
+    matcher = makeFileMatcher(query, fileSearchRegex.checked)
+  } catch (e) {
+    fileSearchActive = false
+    showFileSearchStatus('Invalid regular expression', 'error')
+    renderFileTree(currentWorkspaceTree, currentWorkspaceRoot, { restoreExpandedDirs: fileSearchSavedExpandedDirs || captureExpandedDirs() })
+    return
+  }
+
+  if (!fileSearchActive) fileSearchSavedExpandedDirs = captureExpandedDirs()
+  fileSearchActive = true
+  const filtered = filterTreeByName(currentWorkspaceTree, matcher)
+  if (!filtered) {
+    fileTree.innerHTML = '<div class="empty-hint"><p>🔎</p><p>No matching markdown files</p></div>'
+    showFileSearchStatus('0 matches')
+    return
+  }
+  const count = countFileNodes(filtered)
+  renderFileTree(filtered, currentWorkspaceRoot, { filtered: true, expandAll: true })
+  showFileSearchStatus(`${count} match${count === 1 ? '' : 'es'}`)
+}
+
+function countFileNodes(node) {
+  if (!node) return 0
+  if (node.type === 'file') return 1
+  return (node.children || []).reduce((sum, child) => sum + countFileNodes(child), 0)
+}
+
+btnFileSearch.addEventListener('click', () => {
+  if (fileSearchPanel.classList.contains('hidden')) openFileSearchPanel()
+  else fileSearchPanel.classList.add('hidden')
+})
+fileSearchInput.addEventListener('input', applyFileSearch)
+fileSearchRegex.addEventListener('change', applyFileSearch)
+btnFileSearchClear.addEventListener('click', () => clearFileSearch())
+fileSearchInput.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return
+  e.preventDefault()
+  if (fileSearchInput.value) clearFileSearch()
+  else fileSearchPanel.classList.add('hidden')
+})
+
 // ── 확장 디렉터리 목록 저장 ──────────────────────────────
 function saveExpandedDirs() {
   if (!currentWorkspaceRoot) return
+  if (fileSearchActive) return
   const root = currentWorkspaceRoot
   const expanded = []
   fileTree.querySelectorAll('.tree-dir-row.open').forEach(row => {
@@ -418,8 +911,9 @@ function saveExpandedDirs() {
 }
 
 // ── 파일트리 렌더링 ─────────────────────────────────────
-function renderFileTree(tree, rootPath) {
+function renderFileTree(tree, rootPath, opts = {}) {
   currentWorkspaceRoot = rootPath
+  if (!opts.filtered) currentWorkspaceTree = tree
   if (!tree) {
     fileTree.innerHTML = '<div class="empty-hint"><p>📭</p><p>No .md files found</p></div>'
     return
@@ -427,16 +921,17 @@ function renderFileTree(tree, rootPath) {
   sidebarRootName.textContent = tree.name || rootPath.split(/[\\/]/).pop()
   fileTree.innerHTML = ''
   if (tree.type === 'dir') {
-    tree.children.forEach(node => fileTree.appendChild(createTreeNode(node, 0)))
+    tree.children.forEach(node => fileTree.appendChild(createTreeNode(node, 0, opts)))
   } else {
-    fileTree.appendChild(createTreeNode(tree, 0))
+    fileTree.appendChild(createTreeNode(tree, 0, opts))
   }
+  if (opts.restoreExpandedDirs) expandDirs(opts.restoreExpandedDirs)
 }
 
-function createTreeNode(node, depth) {
+function createTreeNode(node, depth, opts = {}) {
   if (node.type === 'file') {
     const el = document.createElement('div')
-    el.className = 'tree-item'
+    el.className = 'tree-item tree-file-row'
     el.style.paddingLeft = `${8 + depth * 12}px`
     el.innerHTML = `<span class="icon">📄</span><span class="label">${node.name}</span>`
     el.dataset.path = node.path
@@ -446,6 +941,7 @@ function createTreeNode(node, depth) {
   }
 
   const wrap = document.createElement('div')
+  wrap.className = 'tree-node-wrap'
 
   const row = document.createElement('div')
   row.className = 'tree-item tree-dir-row'
@@ -454,8 +950,9 @@ function createTreeNode(node, depth) {
   row.dataset.path = node.path
 
   const children = document.createElement('div')
-  children.className = 'tree-dir-children collapsed'
-  node.children.forEach(child => children.appendChild(createTreeNode(child, depth + 1)))
+  children.className = 'tree-dir-children' + (opts.expandAll ? '' : ' collapsed')
+  node.children.forEach(child => children.appendChild(createTreeNode(child, depth + 1, opts)))
+  if (opts.expandAll) row.classList.add('open')
 
   row.addEventListener('click', () => {
     const collapsed = children.classList.toggle('collapsed')
@@ -678,6 +1175,8 @@ getCurrentWindow().onDragDropEvent(event => {
 })
 
 function renderDroppedFiles(files) {
+  clearFileSearch({ closePanel: true })
+  setFileSearchEnabled(false)
   const groups = {}
   for (const f of files) {
     const dir = f.path.replace(/[\\/][^\\/]+$/, '')

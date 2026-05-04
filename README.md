@@ -11,6 +11,8 @@ Markdown 뷰어 — Electron + marked.js + Mermaid + KaTeX + highlight.js
 - 🧮 KaTeX 수식 렌더링 (`$...$`, `$$...$$`)
 - 🎨 코드 하이라이팅 (highlight.js)
 - 🗂️ 탭 브라우징 — VS Code 스타일 (단일 클릭=preview, 더블클릭=고정)
+- 🔎 파일 이름 검색 — 사이드바 트리를 `.md`/`.markdown` 파일명으로 필터링, Regex 옵션 지원
+- ✨ 본문 검색 — 탭별 검색 상태, 하이라이트, 이전/다음 이동, Markdown 원문 검색 옵션
 - 사이드바 / 목차 패널 접기·펼치기
 
 ## 단축키
@@ -19,6 +21,8 @@ Markdown 뷰어 — Electron + marked.js + Mermaid + KaTeX + highlight.js
 | `Ctrl+Shift+O` | 폴더 열기 |
 | `Ctrl+B`       | 파일 목록 사이드바 토글 |
 | `Ctrl+T`       | 목차 패널 토글 |
+| `Ctrl+F`       | 현재 탭에서 본문 검색 |
+| `Enter` / `Shift+Enter` | 검색 결과 다음/이전 이동 |
 | `Ctrl+W`       | 활성 탭 닫기 |
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | 탭 순환 (다음/이전) |
 | `Ctrl+1..9`    | N번째 탭으로 이동 (Ctrl+9 = 마지막) |

@@ -14,6 +14,9 @@
 
   function uid() { return Math.random().toString(36).slice(2, 10) }
   function basename(path) { return path.split(/[\\/]/).pop() }
+  function defaultFind() {
+    return { visible: false, query: '', sourceMode: 'rendered', caseSensitive: false, currentIndex: -1 }
+  }
 
   function on(ev, fn) {
     if (!listeners[ev]) throw new Error(`tabs.on: unknown event '${ev}'`)
@@ -53,6 +56,11 @@
       t.path = path
       t.title = basename(path)
       t.scrollTop = 0
+      t.find = defaultFind()
+      t.loadedMtime = null
+      t.externalDirty = false
+      t.changedWhilePromptOpen = false
+      t.reloadPromptDismissed = false
       invalidate(t)
       await activate(t.id)
       return t
@@ -67,7 +75,12 @@
       scrollTop: 0,
       history: [{ path, scrollTop: 0 }],
       historyIdx: 0,
-      renderedHTML: null
+      renderedHTML: null,
+      find: defaultFind(),
+      loadedMtime: null,
+      externalDirty: false,
+      changedWhilePromptOpen: false,
+      reloadPromptDismissed: false
     }
     const insertAt = state.activeId
       ? state.tabs.findIndex(t => t.id === state.activeId) + 1
@@ -142,8 +155,13 @@
       return
     }
     tab.missing = false
+    if (MDV.app && MDV.app.clearFindHighlights) MDV.app.clearFindHighlights()
     tab.renderedHTML = preview.innerHTML
     tab.originalMarkdown = MDV.app.getOriginalMarkdown()
+    tab.loadedMtime = result.modifiedMs || null
+    tab.externalDirty = false
+    tab.changedWhilePromptOpen = false
+    tab.reloadPromptDismissed = false
     bumpLru(tab.id)
     evictLru()
     emit('change')
@@ -160,7 +178,7 @@
     el.innerHTML = ''
     state.tabs.forEach((t, i) => {
       const div = document.createElement('div')
-      div.className = 'tab' + (t.id === state.activeId ? ' active' : '') + (t.pinned ? '' : ' preview') + (t.missing ? ' missing' : '')
+      div.className = 'tab' + (t.id === state.activeId ? ' active' : '') + (t.pinned ? '' : ' preview') + (t.missing ? ' missing' : '') + (t.externalDirty ? ' dirty' : '')
       div.dataset.id = t.id
       div.title = t.path
       div.draggable = true
@@ -305,6 +323,33 @@
     t.historyIdx = t.history.length - 1
   }
 
+  // ── Per-tab find state ───────────────────────────────────
+  function getFindState() {
+    const t = active()
+    return Object.assign(defaultFind(), t && t.find ? t.find : {})
+  }
+
+  function setFindState(partial) {
+    const t = active(); if (!t) return null
+    t.find = Object.assign(defaultFind(), t.find || {}, partial || {})
+    emit('change')
+    return t.find
+  }
+
+  function resetFindState() {
+    const t = active(); if (!t) return null
+    t.find = defaultFind()
+    emit('change')
+    return t.find
+  }
+
+  function setExternalState(id, partial) {
+    const t = state.tabs.find(x => x.id === id); if (!t) return null
+    Object.assign(t, partial || {})
+    emit('change')
+    return t
+  }
+
   async function navBack() {
     const t = active(); if (!t || t.historyIdx <= 0) return false
     // Capture current scrollTop into the outgoing history entry.
@@ -313,8 +358,9 @@
     t.historyIdx--
     const entry = t.history[t.historyIdx]
     t.path = entry.path; t.title = basename(entry.path); t.scrollTop = entry.scrollTop
+    t.find = defaultFind()
     invalidate(t)
-    await render(t); emit('change')
+    await render(t); emit('activate'); emit('change')
     return true
   }
 
@@ -326,12 +372,14 @@
     t.historyIdx++
     const entry = t.history[t.historyIdx]
     t.path = entry.path; t.title = basename(entry.path); t.scrollTop = entry.scrollTop
+    t.find = defaultFind()
     invalidate(t)
-    await render(t); emit('change')
+    await render(t); emit('activate'); emit('change')
     return true
   }
 
   NS.tabs = { list, active, open, promote, close, activate, reorder,
               pushHistory: pushHistoryForActive, navBack, navForward, on,
-              openFromLink }
+              openFromLink, getFindState, setFindState, resetFindState,
+              setExternalState }
 })()

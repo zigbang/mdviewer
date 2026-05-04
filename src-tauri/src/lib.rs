@@ -1,6 +1,7 @@
 use serde::Serialize;
 use std::fs;
 use std::path::Path;
+use std::time::UNIX_EPOCH;
 
 // ── 파일트리 구조 ────────────────────────────────────────
 #[derive(Serialize, Clone)]
@@ -119,6 +120,18 @@ fn read_file(file_path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
+fn file_modified_ms(file_path: String) -> Result<u128, String> {
+    let modified = fs::metadata(&file_path)
+        .map_err(|e| format!("path=[{}] err={}", file_path, e))?
+        .modified()
+        .map_err(|e| format!("path=[{}] err={}", file_path, e))?;
+    modified
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .map_err(|e| format!("path=[{}] err={}", file_path, e))
+}
+
+#[tauri::command]
 fn path_exists(path: String) -> bool {
     Path::new(&path).exists()
 }
@@ -204,6 +217,7 @@ pub fn run() {
             build_file_tree,
             open_folder_dialog,
             read_file,
+            file_modified_ms,
             resolve_relative,
             path_exists,
             open_external,
