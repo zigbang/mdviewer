@@ -1,5 +1,27 @@
 # MDViewer Release History
 
+## V2.2.0
+
+### Changes
+- Tab browsing — VS Code-style: single click in tree opens a preview tab (italic + dim), double click in tree or on the tab title pins it. Clicking a markdown link inside a preview tab auto-promotes that tab to pinned and opens the target as a new preview to its right. Same path is never duplicated across tabs.
+- Same-basename tabs disambiguate to `parent/basename` titles
+- Per-tab scroll position preserved across tab switches
+- Per-tab navigation history — `Alt+←/→` and mouse back/forward operate only on the active tab
+- LRU render cache (8 tabs) — instant tab switching with no disk re-read or re-rendering of marked/mermaid/KaTeX
+- Pinned tabs persist across restarts; preview tabs are intentionally volatile. Legacy single-`activeFile` sessions migrate to one pinned tab on first launch
+- Drag-to-reorder tabs
+- Missing-file state — a tab whose file was deleted shows a red dot + strikethrough, the broken-link preview, and only the close action
+
+### Shortcuts
+- `Ctrl+W` — close active tab
+- `Ctrl+Tab` / `Ctrl+Shift+Tab` — cycle next/previous tab (wraps)
+- `Ctrl+1..8` — jump to N-th tab; `Ctrl+9` — jump to last tab
+
+### Fixes
+- Manual double-click detection on the tab bar (native `dblclick` is unreliable on `draggable=true` elements in WebKit/Chromium)
+
+---
+
 ## V2.1.0
 
 ### Changes
