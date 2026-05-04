@@ -38,9 +38,10 @@ marked.use({
 })
 
 // ── 상태 ─────────────────────────────────────────────────
-let currentFilePath = null
-let sidebarVisible  = true
-let tocVisible      = true
+let currentFilePath     = null
+let currentWorkspaceRoot = null
+let sidebarVisible      = true
+let tocVisible          = true
 
 // ── 네비게이션 히스토리 (링크 클릭으로만 push) ─────────────
 const navHistory = []
@@ -262,11 +263,71 @@ document.addEventListener('keydown', e => {
   if (e.key === 'End')       { e.preventDefault(); pw.scrollTo(0, pw.scrollHeight) }
 })
 
+// ── 미리보기 스크롤 세션 저장 ────────────────────────────
+const previewWrapEl = document.getElementById('preview-wrap')
+previewWrapEl.addEventListener('scroll', () => {
+  MDV.recents.saveSession({ scrollTop: previewWrapEl.scrollTop })
+})
+
 // ── 폴더 열기 ────────────────────────────────────────────
+async function openWorkspaceByPath(rootPath, prebuiltTree) {
+  const tree = prebuiltTree != null ? prebuiltTree : await invoke('build_file_tree', { dirPath: rootPath })
+  if (!tree) return
+  renderFileTree(tree, rootPath)
+  MDV.recents.pushRecentWorkspace(rootPath)
+  // saveSessionNow cancels any in-flight debounced saveSession (e.g. stale expandedDirs from old workspace).
+  MDV.recents.saveSessionNow({
+    workspaceRoot: rootPath,
+    activeFile: null,
+    scrollTop: 0,
+    expandedDirs: []
+  })
+}
+
+async function openWorkspaceByPathRestore(rootPath) {
+  const tree = await invoke('build_file_tree', { dirPath: rootPath })
+  if (!tree) return
+  renderFileTree(tree, rootPath)
+  // Do NOT push recents (already there) and do NOT reset session.
+}
+
+function expandDirs(relPaths) {
+  if (!relPaths || !relPaths.length) return
+  const wanted = new Set(relPaths)
+  fileTree.querySelectorAll('.tree-dir-row').forEach(row => {
+    const abs = row.dataset.path
+    if (!abs || !currentWorkspaceRoot) return
+    let rel = abs.startsWith(currentWorkspaceRoot) ? abs.slice(currentWorkspaceRoot.length) : abs
+    rel = rel.replace(/^[\\/]+/, '').replace(/\\/g, '/')
+    if (wanted.has(rel)) {
+      const children = row.parentElement.querySelector('.tree-dir-children')
+      if (children) {
+        children.classList.remove('collapsed')
+        row.classList.add('open')
+      }
+    }
+  })
+}
+
+async function openFileRestore(filePath, scrollTop) {
+  await openFile(filePath, null, { pushRecent: false })
+  // Apply scroll after render settles
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const pw = document.getElementById('preview-wrap')
+      if (pw) pw.scrollTop = scrollTop || 0
+    })
+  })
+}
+
+// Expose for session.js
+window.MDV = window.MDV || {}
+window.MDV.app = { openWorkspaceByPathRestore, openFileRestore, expandDirs }
+
 btnOpenFolder.addEventListener('click', async () => {
   const result = await invoke('open_folder_dialog')
   if (!result) return
-  renderFileTree(result.tree, result.rootPath)
+  await openWorkspaceByPath(result.rootPath, result.tree)
 })
 
 const btnOpenFolderEmpty = document.getElementById('btn-open-folder-empty')
@@ -274,8 +335,24 @@ if (btnOpenFolderEmpty) {
   btnOpenFolderEmpty.addEventListener('click', () => btnOpenFolder.click())
 }
 
+// ── 확장 디렉터리 목록 저장 ──────────────────────────────
+function saveExpandedDirs() {
+  if (!currentWorkspaceRoot) return
+  const root = currentWorkspaceRoot
+  const expanded = []
+  fileTree.querySelectorAll('.tree-dir-row.open').forEach(row => {
+    const abs = row.dataset.path
+    if (!abs) return
+    let rel = abs.startsWith(root) ? abs.slice(root.length) : abs
+    rel = rel.replace(/^[\\/]+/, '').replace(/\\/g, '/')
+    if (rel) expanded.push(rel)
+  })
+  MDV.recents.saveSession({ expandedDirs: expanded })
+}
+
 // ── 파일트리 렌더링 ─────────────────────────────────────
 function renderFileTree(tree, rootPath) {
+  currentWorkspaceRoot = rootPath
   if (!tree) {
     fileTree.innerHTML = '<div class="empty-hint"><p>📭</p><p>No .md files found</p></div>'
     return
@@ -306,6 +383,7 @@ function createTreeNode(node, depth) {
   row.className = 'tree-item tree-dir-row'
   row.style.paddingLeft = `${8 + depth * 12}px`
   row.innerHTML = `<span class="arrow">▶</span><span class="icon">📁</span><span class="label">${node.name}</span>`
+  row.dataset.path = node.path
 
   const children = document.createElement('div')
   children.className = 'tree-dir-children collapsed'
@@ -314,6 +392,7 @@ function createTreeNode(node, depth) {
   row.addEventListener('click', () => {
     const collapsed = children.classList.toggle('collapsed')
     row.classList.toggle('open', !collapsed)
+    saveExpandedDirs()
   })
 
   wrap.appendChild(row)
@@ -322,7 +401,7 @@ function createTreeNode(node, depth) {
 }
 
 // ── 파일 열기 ────────────────────────────────────────────
-async function openFile(filePath, treeEl, { resetNav = true } = {}) {
+async function openFile(filePath, treeEl, { resetNav = true, pushRecent = true } = {}) {
   if (resetNav) resetHistory()
 
   document.querySelectorAll('.tree-item.active').forEach(e => e.classList.remove('active'))
@@ -352,6 +431,14 @@ async function openFile(filePath, treeEl, { resetNav = true } = {}) {
   setWindowTitle(name, filePath)
   zoomControls.classList.add('visible')
 
+  // Reset scroll position before rendering so the new content starts at top.
+  // Without this, an in-flight scroll event from the innerHTML swap can write a stale value into the session.
+  const previewWrap = document.getElementById('preview-wrap')
+  if (previewWrap) previewWrap.scrollTop = 0
+
+  if (pushRecent) MDV.recents.pushRecentFile(filePath)
+  MDV.recents.saveSession({ activeFile: filePath, scrollTop: 0 })
+
   await renderMarkdown(content)
 }
 
@@ -378,7 +465,7 @@ async function applyNavEntry(entry) {
   if (entry.path !== currentFilePath) {
     const treeEl = Array.from(fileTree.querySelectorAll('.tree-item[data-path]'))
       .find(el => el.dataset.path === entry.path)
-    await openFile(entry.path, treeEl, { resetNav: false })
+    await openFile(entry.path, treeEl, { resetNav: false, pushRecent: false })
   }
   requestAnimationFrame(() => {
     if (entry.hash) {
@@ -642,6 +729,94 @@ function renderDroppedFiles(files) {
   }
 }
 
+// ── Recent dropdown ────────────────────────────────────
+const btnRecent       = document.getElementById('btn-recent')
+const recentDropdown  = document.getElementById('recent-dropdown')
+const recentWsList    = document.getElementById('recent-ws-list')
+const recentFilesList = document.getElementById('recent-files-list')
+const btnClearRecents = document.getElementById('btn-clear-recents')
+
+async function renderRecentList(container, entries, onPick) {
+  container.innerHTML = ''
+  if (!entries.length) {
+    const empty = document.createElement('div')
+    empty.className = 'recent-empty'
+    empty.textContent = '(none)'
+    container.appendChild(empty)
+    return
+  }
+  // existence check in parallel
+  const flags = await Promise.all(entries.map(e =>
+    invoke('path_exists', { path: e.path }).catch(() => false)
+  ))
+  entries.forEach((e, i) => {
+    const item = document.createElement('div')
+    item.className = 'recent-item' + (flags[i] ? '' : ' disabled')
+    item.setAttribute('role', 'menuitem')
+    item.title = e.path
+    const nameSpan = document.createElement('span')
+    nameSpan.className = 'recent-name'
+    nameSpan.textContent = e.name || ''
+    const pathSpan = document.createElement('span')
+    pathSpan.className = 'recent-path'
+    pathSpan.textContent = e.path
+    item.appendChild(nameSpan)
+    item.appendChild(pathSpan)
+    item.addEventListener('click', () => {
+      if (!flags[i]) return
+      hideRecentDropdown()
+      onPick(e)
+    })
+    container.appendChild(item)
+  })
+}
+
+async function showRecentDropdown() {
+  await Promise.all([
+    renderRecentList(recentWsList,    MDV.recents.loadRecentWorkspaces(), pickWorkspace),
+    renderRecentList(recentFilesList, MDV.recents.loadRecentFiles(),      pickFile),
+  ])
+  recentDropdown.classList.remove('hidden')
+  btnRecent.setAttribute('aria-expanded', 'true')
+}
+function hideRecentDropdown() {
+  recentDropdown.classList.add('hidden')
+  btnRecent.setAttribute('aria-expanded', 'false')
+}
+
+btnRecent.addEventListener('click', e => {
+  e.stopPropagation()
+  if (recentDropdown.classList.contains('hidden')) showRecentDropdown()
+  else hideRecentDropdown()
+})
+
+document.addEventListener('click', e => {
+  if (recentDropdown.classList.contains('hidden')) return
+  if (recentDropdown.contains(e.target) || btnRecent.contains(e.target)) return
+  hideRecentDropdown()
+})
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !recentDropdown.classList.contains('hidden')) hideRecentDropdown()
+})
+
+btnClearRecents.addEventListener('click', () => {
+  if (!confirm('Clear all recent workspaces and recent files?')) return
+  MDV.recents.clearRecents()
+  hideRecentDropdown()
+})
+
+// pickers — implementations land in Task 5 (workspace) and use existing openFile (file)
+async function pickWorkspace(entry) {
+  await openWorkspaceByPath(entry.path)
+}
+async function pickFile(entry) {
+  // If the picked file is in the current workspace tree, find its row to highlight it.
+  // If it's cross-workspace, treeEl will be null and tree highlight stays on the prior file
+  // (known limitation — see spec §14).
+  const treeEl = fileTree.querySelector(`.tree-item[data-path="${CSS.escape(entry.path)}"]`)
+  await openFile(entry.path, treeEl)
+}
+
 // ── 리사이즈 핸들 ────────────────────────────────────────
 setupResize('resize-sidebar', 'sidebar',   'width', 140, 480)
 setupResize('resize-toc',     'toc-panel', 'width', 140, 360, true)
@@ -675,4 +850,17 @@ function setupResize(handleId, targetId, prop, min, max, reverse = false) {
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
   })
+}
+
+// ── Session restore (last block before EOF) ──
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    if (MDV.session && MDV.session.restoreSession) {
+      MDV.session.restoreSession().catch(err => console.warn('[restore] failed:', err))
+    }
+  })
+} else {
+  if (MDV.session && MDV.session.restoreSession) {
+    MDV.session.restoreSession().catch(err => console.warn('[restore] failed:', err))
+  }
 }

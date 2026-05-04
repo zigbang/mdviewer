@@ -115,6 +115,22 @@
       <button id="btn-open-folder" title="Open Folder (Ctrl+Shift+O)">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
       </button>
+      <button id="btn-recent" title="Recent (workspaces &amp; files)" aria-haspopup="menu" aria-expanded="false">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        ▾
+      </button>
+      <div id="recent-dropdown" class="recent-dropdown hidden" role="menu">
+        <div class="recent-section">
+          <div class="recent-section-title">Recent Workspaces</div>
+          <div id="recent-ws-list" class="recent-list"></div>
+        </div>
+        <div class="recent-section">
+          <div class="recent-section-title">Recent Files</div>
+          <div id="recent-files-list" class="recent-list"></div>
+        </div>
+        <div class="recent-divider"></div>
+        <button id="btn-clear-recents" class="recent-action" role="menuitem">Clear Recent</button>
+      </div>
     </div>
     <div id="file-tree">
       <div class="empty-hint">
@@ -153,6 +169,8 @@
   <div id="drop-message">Drop .md files here</div>
 </div>
 
+<script src="recents.js"></script>
+<script src="session.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

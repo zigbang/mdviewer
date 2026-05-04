@@ -177,6 +177,7 @@ html, body {
 }
 
 #sidebar-header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -702,3 +703,81 @@ html, body {
 :root[data-theme="light"] #preview .mermaid .labelText,
 :root[data-theme="light"] #preview .mermaid .edgeLabel,
 :root[data-theme="light"] #preview .mermaid .nodeLabel { fill: #1a1a1a !important; color: #1a1a1a !important; }
+
+/* ── Recent dropdown ────────────────────────────── */
+.recent-dropdown {
+  position: absolute;
+  top: 40px;
+  left: 8px;
+  z-index: 100;
+  min-width: 360px;
+  max-width: 520px;
+  max-height: 70vh;
+  overflow-y: auto;
+  background: var(--bg2, #1e1e1e);
+  color: var(--text, #ddd);
+  border: 1px solid var(--border, #333);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  padding: 6px 0;
+  font-size: 13px;
+}
+.recent-dropdown.hidden { display: none; }
+
+.recent-section-title {
+  padding: 6px 12px 2px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim, #888);
+}
+
+.recent-list { display: flex; flex-direction: column; }
+.recent-item {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 12px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+}
+.recent-item:hover {
+  background: var(--bg3, #2a2a2a);
+  border-left-color: var(--accent, #4a9eff);
+}
+.recent-item .recent-name { font-weight: 500; }
+.recent-item .recent-path {
+  color: var(--text-dim, #888);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.recent-item.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.recent-item.disabled:hover { background: transparent; border-left-color: transparent; }
+
+.recent-list .recent-empty {
+  padding: 4px 12px 8px;
+  color: var(--text-dim, #888);
+  font-style: italic;
+}
+
+.recent-divider {
+  height: 1px;
+  background: var(--border, #333);
+  margin: 6px 0;
+}
+
+.recent-action {
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  background: transparent;
+  color: var(--text, #ddd);
+  border: none;
+  cursor: pointer;
+  font: inherit;
+}
+.recent-action:hover { background: var(--bg3, #2a2a2a); }
