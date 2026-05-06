@@ -1,5 +1,12 @@
 # MDViewer Release History
 
+## V2.4.1
+
+### Changes
+- macOS 릴리즈에 ZIGBANG 팀의 Apple Developer ID Application 인증서를 사용한 정식 코드 서명 + Apple notarization 적용. 다운로드한 `.app` / `.dmg`가 Gatekeeper 경고 없이 즉시 실행됨 — `scripts/macos-install.sh` 또는 `xattr -dr` 우회 단계 불필요.
+
+---
+
 ## V2.4.0
 
 ### Changes
