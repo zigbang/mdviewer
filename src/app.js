@@ -1090,6 +1090,14 @@ function renderKatex() {
 }
 
 // ── TOC 생성 ─────────────────────────────────────────────
+function slugifyHeading(text) {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^\p{L}\p{N}\s_-]/gu, '')
+    .replace(/\s+/g, '-')
+}
+
 function buildToc() {
   tocList.innerHTML = ''
   const headings = preview.querySelectorAll('h1,h2,h3,h4,h5,h6')
@@ -1099,8 +1107,18 @@ function buildToc() {
     return
   }
 
+  const slugCounts = {}
   headings.forEach((h, i) => {
-    if (!h.id) h.id = `heading-${i}`
+    if (!h.id) {
+      let slug = slugifyHeading(h.textContent) || `heading-${i}`
+      if (slugCounts[slug] !== undefined) {
+        slugCounts[slug] += 1
+        slug = `${slug}-${slugCounts[slug]}`
+      } else {
+        slugCounts[slug] = 0
+      }
+      h.id = slug
+    }
 
     const level = parseInt(h.tagName[1])
     const item  = document.createElement('div')
