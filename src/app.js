@@ -106,6 +106,13 @@ async function refreshFile() {
 }
 document.getElementById('btn-refresh').addEventListener('click', refreshFile)
 
+// ── 인쇄 ────────────────────────────────────────────────
+function printCurrent() {
+  if (!MDV.tabs.active()) return
+  window.print()
+}
+document.getElementById('btn-print').addEventListener('click', printCurrent)
+
 // ── 전체 화면 ───────────────────────────────────────────
 document.getElementById('btn-fullscreen').addEventListener('click', () => {
   invoke('toggle_fullscreen')
@@ -284,6 +291,10 @@ document.addEventListener('keydown', e => {
   if (e.key === 'F5') {
     e.preventDefault()
     refreshFile()
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
+    e.preventDefault()
+    printCurrent()
   }
   // 네비게이션 back/forward
   if (e.altKey && e.key === 'ArrowLeft')  { e.preventDefault(); MDV.tabs.navBack().catch(err => console.warn(err)) }

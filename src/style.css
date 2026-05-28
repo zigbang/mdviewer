@@ -1024,3 +1024,131 @@ html, body {
                           background: #f48771; margin-right: 6px; flex-shrink: 0; }
 .tab.dirty::before      { content: ''; width: 6px; height: 6px; border-radius: 50%;
                           background: #ffb000; margin-right: 6px; flex-shrink: 0; }
+
+/* ── 인쇄 ────────────────────────────────────────────── */
+@media print {
+  @page { margin: 16mm 14mm; }
+
+  html, body {
+    height: auto;
+    overflow: visible;
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 11pt;
+  }
+
+  /* UI chrome 숨김 */
+  #toolbar,
+  #sidebar,
+  #toc-panel,
+  .resize-handle,
+  #tab-bar,
+  #viewer-find-bar,
+  #drop-overlay,
+  #about-overlay,
+  #translate-overlay,
+  #reload-overlay,
+  #recent-dropdown,
+  #preview-empty {
+    display: none !important;
+  }
+
+  /* 레이아웃 평탄화 */
+  #layout {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  #preview-wrap {
+    overflow: visible !important;
+    height: auto !important;
+    background: #ffffff !important;
+  }
+  #preview {
+    display: block !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    zoom: 1 !important;
+    line-height: 1.55;
+    color: #000000 !important;
+  }
+
+  /* 헤딩 — 검정, 페이지 분할 방지 */
+  #preview h1, #preview h2, #preview h3,
+  #preview h4, #preview h5, #preview h6 {
+    color: #000000 !important;
+    page-break-after: avoid;
+    break-after: avoid;
+    border-bottom-color: #cccccc !important;
+  }
+
+  /* 단락은 가능한 한 분리되지 않도록 */
+  #preview p, #preview li { orphans: 3; widows: 3; }
+
+  /* 코드 / 표 / Mermaid / blockquote — 페이지 분할 방지 */
+  #preview pre,
+  #preview table,
+  #preview blockquote,
+  #preview .mermaid,
+  #preview img {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* 코드 블록 — 라이트 배경, 줄바꿈 허용 */
+  #preview pre {
+    background: #f6f8fa !important;
+    border: 1px solid #d0d7de !important;
+    color: #000000 !important;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow: visible !important;
+  }
+  #preview pre code,
+  #preview pre code * {
+    color: #000000 !important;
+    background: transparent !important;
+  }
+  #preview code {
+    background: #f0f0f0 !important;
+    color: #000000 !important;
+    border: 1px solid #e0e0e0;
+  }
+
+  /* 인라인 강조 — 라이트 톤 */
+  #preview blockquote {
+    background: #f6f8fa !important;
+    border-left: 4px solid #888888 !important;
+    color: #333333 !important;
+  }
+
+  /* 표 */
+  #preview table { border-collapse: collapse; }
+  #preview th, #preview td {
+    border: 1px solid #999999 !important;
+    color: #000000 !important;
+    background: #ffffff !important;
+  }
+  #preview th { background: #eeeeee !important; }
+  #preview tr:nth-child(even) td { background: #fafafa !important; }
+
+  /* Mermaid */
+  #preview .mermaid {
+    background: #ffffff !important;
+    border: 1px solid #cccccc !important;
+  }
+  #preview .mermaid svg { max-width: 100% !important; height: auto !important; }
+
+  /* 링크 — 검정, 밑줄로 식별 */
+  #preview a {
+    color: #000000 !important;
+    text-decoration: underline;
+  }
+
+  /* 이미지 폭 제한 */
+  #preview img { max-width: 100% !important; height: auto !important; }
+
+  /* hr */
+  #preview hr { border-top: 1px solid #999999 !important; }
+}
