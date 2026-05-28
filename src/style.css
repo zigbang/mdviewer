@@ -1151,6 +1151,15 @@ html, body {
     color: #000000 !important;
     text-decoration: underline;
   }
+  /* 외부 URL은 종이에서 추적 가능하도록 실제 주소 병기 */
+  #preview a[href^="http://"]::after,
+  #preview a[href^="https://"]::after,
+  #preview a[href^="mailto:"]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.85em;
+    color: #555555;
+    word-break: break-all;
+  }
 
   /* 이미지 폭 제한 */
   #preview img { max-width: 100% !important; height: auto !important; }
