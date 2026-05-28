@@ -1086,9 +1086,9 @@ html, body {
   /* 단락은 가능한 한 분리되지 않도록 */
   #preview p, #preview li { orphans: 3; widows: 3; }
 
-  /* 코드 / 표 / Mermaid / blockquote — 페이지 분할 방지 */
+  /* 코드 / Mermaid / blockquote / 이미지 — 페이지 분할 방지
+     (표는 thead 반복을 위해 분할 허용) */
   #preview pre,
-  #preview table,
   #preview blockquote,
   #preview .mermaid,
   #preview img {
@@ -1125,6 +1125,12 @@ html, body {
 
   /* 표 */
   #preview table { border-collapse: collapse; }
+  #preview thead { display: table-header-group; }
+  #preview tfoot { display: table-footer-group; }
+  #preview tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
   #preview th, #preview td {
     border: 1px solid #999999 !important;
     color: #000000 !important;
