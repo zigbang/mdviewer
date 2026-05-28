@@ -1096,20 +1096,16 @@ html, body {
     break-inside: avoid;
   }
 
-  /* 코드 블록 — 라이트 배경, 줄바꿈 허용 */
+  /* 코드 블록 — 라이트 배경, 줄바꿈 허용
+     (hljs github.min.css가 토큰별 색상 담당) */
   #preview pre {
     background: #f6f8fa !important;
     border: 1px solid #d0d7de !important;
-    color: #000000 !important;
     white-space: pre-wrap;
     word-wrap: break-word;
     overflow: visible !important;
   }
-  #preview pre code,
-  #preview pre code * {
-    color: #000000 !important;
-    background: transparent !important;
-  }
+  #preview pre code { background: transparent !important; }
   #preview code {
     background: #f0f0f0 !important;
     color: #000000 !important;
