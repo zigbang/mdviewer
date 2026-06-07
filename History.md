@@ -1,5 +1,21 @@
 # MDViewer Release History
 
+## V2.5.0
+
+### Changes
+- Document printing — toolbar Print button and `Ctrl+P` invoke `window.print()`. The print stylesheet (`@media print`) hides the toolbar/sidebar/TOC/tab bar/find bar/modals, flattens the layout, and forces a light tone even in dark theme. Code blocks wrap, headings are not left orphaned at a page bottom, and `pre`/`table`/`blockquote`/mermaid/`img` avoid mid-element page breaks.
+- Print: long tables repeat `thead`/`tfoot` on every page (`display: table-header-group`/`footer-group`); whole-table break avoidance is dropped in favor of per-row (`tr`) break avoidance for readability.
+- Print: external links (`http`, `mailto:`) print their actual URL in small grey text after the link so paper output stays traceable; long URLs wrap via `word-break: break-all`.
+- Print: code syntax highlighting preserved on paper — the hljs github (light) theme is loaded as `media="print"` and the dark theme limited to `media="screen"`, so token colors survive instead of being forced black.
+
+### Shortcuts
+- `Ctrl+P` — print the current document
+
+### Fixes
+- In-document TOC anchor links now navigate: heading `textContent` is converted to a GitHub-style slug for its `id`. Previously marked v11 emitted no heading ids, so `buildToc` assigned only `heading-N` fallback ids and body anchors like `[Section](#1-domain-model)` failed to match.
+
+---
+
 ## V2.4.1
 
 ### Changes
