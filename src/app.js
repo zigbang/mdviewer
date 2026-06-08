@@ -120,6 +120,10 @@ document.getElementById('btn-fullscreen').addEventListener('click', () => {
 
 // ── About 모달 ──────────────────────────────────────────
 const aboutOverlay = document.getElementById('about-overlay')
+// 버전은 빌드 타임에 tauri.conf.json 값이 바이너리에 박히고, 여기서 런타임에 읽어 표시
+window.__TAURI__.app.getVersion()
+  .then((v) => { document.getElementById('about-version').textContent = `MD Viewer v${v}` })
+  .catch(() => {})
 document.getElementById('btn-about').addEventListener('click', () => {
   aboutOverlay.classList.add('visible')
 })

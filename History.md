@@ -1,5 +1,12 @@
 # MDViewer Release History
 
+## V2.5.1
+
+### Fixes
+- About modal version is now read at runtime via `window.__TAURI__.app.getVersion()` instead of a hardcoded string. The version was stuck at `v2.3.0` and drifted on every release since nobody updated the literal in `index.html`. Single source of truth is now `tauri.conf.json` (baked into the binary at build time), so the About display can no longer disagree with the actual build.
+
+---
+
 ## V2.5.0
 
 ### Changes
