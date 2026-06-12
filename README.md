@@ -2,65 +2,83 @@
 
 [![MDViewer Build](https://github.com/zigbang/mdviewer/actions/workflows/build.yml/badge.svg)](https://github.com/zigbang/mdviewer/actions/workflows/build.yml)
 
-Markdown 뷰어 — Electron + marked.js + Mermaid + KaTeX + highlight.js
+Markdown viewer — Tauri v2 (Rust + system WebView) + marked.js + Mermaid + KaTeX + highlight.js
 
-## 기능
-- 📂 폴더 열기 → 파일 트리에서 `.md` 파일 탐색
-- 📋 목차(TOC) 자동 생성 — 클릭 시 해당 위치로 이동
-- 📊 Mermaid 다이어그램 렌더링 (최신 v11)
-- 🧮 KaTeX 수식 렌더링 (`$...$`, `$$...$$`)
-- 🎨 코드 하이라이팅 (highlight.js)
-- 🗂️ 탭 브라우징 — VS Code 스타일 (단일 클릭=preview, 더블클릭=고정)
-- 🔎 파일 이름 검색 — 사이드바 트리를 `.md`/`.markdown` 파일명으로 필터링, Regex 옵션 지원
-- ✨ 본문 검색 — 탭별 검색 상태, 하이라이트, 이전/다음 이동, Markdown 원문 검색 옵션
-- 사이드바 / 목차 패널 접기·펼치기
+~6MB distribution, lightweight to run. See [History.md](History.md) for the per-version changelog.
 
-## 단축키
-| 단축키 | 기능 |
-|--------|------|
-| `Ctrl+Shift+O` | 폴더 열기 |
-| `Ctrl+B`       | 파일 목록 사이드바 토글 |
-| `Ctrl+T`       | 목차 패널 토글 |
-| `Ctrl+F`       | 현재 탭에서 본문 검색 |
-| `Enter` / `Shift+Enter` | 검색 결과 다음/이전 이동 |
-| `Ctrl+W`       | 활성 탭 닫기 |
-| `Ctrl+Tab` / `Ctrl+Shift+Tab` | 탭 순환 (다음/이전) |
-| `Ctrl+1..9`    | N번째 탭으로 이동 (Ctrl+9 = 마지막) |
+## Download
 
-## 실행 방법
+Get the latest version from [Releases](https://github.com/zigbang/mdviewer/releases):
+
+| Platform | File | Notes |
+|----------|------|-------|
+| Windows | `*.exe` (NSIS) / `*.msi` | Installer |
+| macOS | `MDViewer_V*-mac.zip` / `*.dmg` | Apple Developer ID signed + notarized (V2.4.1+) |
+
+## Features
+
+- 📂 Open a folder → browse `.md` files in the file tree, with recent-folder list and automatic session restore
+- 🖱️ Double-click `.md` files in Finder/Explorer to open directly (file association)
+- 🗂️ Tab browsing — VS Code style (single click = preview, double click = pin), drag to reorder, per-tab scroll position and navigation history
+- 📋 Auto-generated table of contents — click to jump, in-document anchor links supported
+- 📊 Mermaid diagram rendering (v11)
+- 🧮 KaTeX math rendering (`$...$`, `$$...$$`)
+- 🎨 Code syntax highlighting (highlight.js)
+- 🔎 File name search — filters the sidebar tree, with regex option
+- ✨ In-document text search — per-tab search state, highlights, previous/next navigation, optional Markdown-source matching
+- 🖨️ Document printing — print-only stylesheet (hides sidebar/toolbar, keeps code highlighting, repeats table headers across pages, appends external link URLs)
+- 🖼️ Local image rendering, broken-link placeholder page
+- Zoom in/out, fullscreen, collapsible sidebar / TOC panels
+
+## Keyboard shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+F` | Find in current tab (`Enter`/`Shift+Enter` for next/previous) |
+| `Ctrl+B` | Toggle file tree sidebar |
+| `Ctrl+T` | Toggle TOC panel |
+| `Ctrl+P` | Print current document |
+| `Ctrl+W` | Close active tab |
+| `Ctrl+Tab` / `Ctrl+Shift+Tab` | Cycle tabs (next/previous) |
+| `Ctrl+1..8`, `Ctrl+9` | Jump to N-th / last tab |
+| `Ctrl++` / `Ctrl+-` / `Ctrl+0` | Zoom in / out / reset |
+| `Alt+←` / `Alt+→` | Per-tab navigation history back/forward |
+| `F5` | Reload current document |
+| `F11` | Toggle fullscreen |
+
+Use `Cmd` instead of `Ctrl` on macOS.
+
+## Development / Build
+
+Prerequisites: Node.js 20+, [Rust toolchain](https://rustup.rs/) (stable)
 
 ```bash
-# 1. 의존성 설치
+# 1. Install dependencies
 npm install
 
-# 2. 개발 모드 실행
-npm start
+# 2. Run in dev mode
+npx tauri dev
 
-# 3. Windows 포터블 .exe 빌드
-npm run build:win
-# → dist/MD Viewer *.exe 생성
+# 3. Release build
+npx tauri build
+# → platform packages under src-tauri/target/release/bundle/
+#    Windows: nsis/*.exe, msi/*.msi
+#    macOS:   macos/*.app, dmg/*.dmg
 ```
 
-## 빌드 결과물
-`dist/` 폴더에 포터블 `.exe` 하나 생성됨 — 설치 없이 더블클릭으로 바로 실행
+## macOS notes
 
-## macOS — Finder에서 `.md` 더블클릭으로 열기
+**V2.4.1 and later** are Apple Developer ID signed + notarized — they run immediately after download, no workaround needed.
 
-릴리스 zip의 `MD Viewer.app`은 Apple Developer ID로 정식 서명·공증되지 않아 (GitHub Actions에서 ad-hoc 서명만 함) 다운로드 시 `com.apple.quarantine` 속성이 붙는다. 이 상태로 `.md`를 MDViewer로 열려고 하면 Gatekeeper가 `'<파일>.md'을(를) 열지 않음 — Apple은 ... 악성 코드가 없음을 확인할 수 없습니다.` 다이얼로그를 띄운다.
-
-설치 후 한 번만 실행하면 해결된다:
+**V2.4.0 and earlier** are ad-hoc signed only, so Gatekeeper blocks them. Copy the `.app` to `/Applications`, then run once:
 
 ```bash
-# .app을 /Applications에 복사한 뒤
 ./scripts/macos-install.sh
-# 또는 직접:
+# or directly:
 xattr -dr com.apple.quarantine "/Applications/MD Viewer.app"
 ```
 
-그 다음 Finder에서 `.md` → 우클릭 → 다음으로 열기 → MD Viewer 한 번 선택하거나, "정보 가져오기 → 다음으로 열기 → MD Viewer → 모두 변경"으로 기본 핸들러를 지정한다. 이후 더블클릭이면 바로 열린다.
+## Documentation
 
-이미 다운로드한 `.md` 파일 자체에 quarantine이 붙어 있다면 (예: 브라우저로 받은 첨부) 그 파일도 같이 풀어준다:
-
-```bash
-xattr -d com.apple.quarantine /path/to/file.md
-```
+- [History.md](History.md) — per-version release notes
+- [MDViewer_Windows_Security_Guide.pdf](MDViewer_Windows_Security_Guide.pdf) — Windows security guide
