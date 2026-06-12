@@ -222,6 +222,19 @@
   </div>
 </div>
 
+<!-- Diagram zoom overlay -->
+<div id="diagram-overlay">
+  <div id="diagram-toolbar">
+    <button id="diagram-zoom-out" type="button" title="축소 (Ctrl+-)">−</button>
+    <span id="diagram-zoom-level" title="처음 배율로 리셋 (Ctrl+0)">100%</span>
+    <button id="diagram-zoom-in" type="button" title="확대 (Ctrl++)">+</button>
+    <button id="diagram-close" type="button" title="닫기">✕</button>
+  </div>
+  <div id="diagram-viewport">
+    <div id="diagram-content"></div>
+  </div>
+</div>
+
 <!-- Recent dropdown (hoisted out of sidebar to escape overflow:hidden clipping) -->
 <div id="recent-dropdown" class="recent-dropdown hidden" role="menu">
   <div class="recent-section">

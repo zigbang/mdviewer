@@ -615,6 +615,7 @@ html, body {
 
 /* mermaid */
 #preview .mermaid {
+  position: relative;
   background: var(--bg2);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -622,6 +623,109 @@ html, body {
   margin: 1em 0;
   text-align: center;
   overflow-x: auto;
+}
+
+/* mermaid 확대 버튼 (위/아래 우측 모서리) */
+.mermaid-zoom-btn {
+  position: absolute;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-dim);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+  z-index: 5;
+}
+.mermaid-zoom-btn.top    { top: 6px; }
+.mermaid-zoom-btn.bottom { bottom: 6px; }
+#preview .mermaid:hover .mermaid-zoom-btn { opacity: 0.85; }
+.mermaid-zoom-btn:hover {
+  background: var(--accent);
+  color: #fff;
+  opacity: 1 !important;
+}
+
+/* ── 다이어그램 확대 오버레이 ────────────────────────── */
+#diagram-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  z-index: 9999;
+  flex-direction: column;
+}
+#diagram-overlay.visible { display: flex; }
+
+#diagram-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+#diagram-toolbar button {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+#diagram-toolbar button:hover { background: var(--accent); color: #fff; }
+#diagram-zoom-level {
+  min-width: 48px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+}
+#diagram-close { margin-left: 8px; }
+
+#diagram-viewport {
+  flex: 1;
+  overflow: auto;
+  overscroll-behavior: contain; /* 스크롤 끝에서 본문으로 체이닝 방지 */
+  cursor: grab;
+}
+#diagram-viewport.panning { cursor: grabbing; }
+
+#diagram-content {
+  display: flex;
+  width: max-content;
+  min-width: 100%;
+  min-height: 100%;
+  padding: 24px;
+  box-sizing: border-box;
+}
+#diagram-content .diagram-stage {
+  margin: auto; /* 작은 다이어그램은 중앙, 큰 것은 overflow-safe */
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+}
+#diagram-content svg {
+  display: block;
+  max-width: none !important;
+  height: auto;
 }
 
 /* ── About 모달 ──────────────────────────────────────── */
@@ -918,6 +1022,12 @@ html, body {
 :root[data-theme="light"] #preview .mermaid .labelText,
 :root[data-theme="light"] #preview .mermaid .edgeLabel,
 :root[data-theme="light"] #preview .mermaid .nodeLabel { fill: #1a1a1a !important; color: #1a1a1a !important; }
+:root[data-theme="light"] #diagram-content text,
+:root[data-theme="light"] #diagram-content .messageText,
+:root[data-theme="light"] #diagram-content .noteText,
+:root[data-theme="light"] #diagram-content .labelText,
+:root[data-theme="light"] #diagram-content .edgeLabel,
+:root[data-theme="light"] #diagram-content .nodeLabel { fill: #1a1a1a !important; color: #1a1a1a !important; }
 
 /* ── Recent dropdown ────────────────────────────── */
 .recent-dropdown {
@@ -1048,6 +1158,8 @@ html, body {
   #about-overlay,
   #translate-overlay,
   #reload-overlay,
+  #diagram-overlay,
+  .mermaid-zoom-btn,
   #recent-dropdown,
   #preview-empty {
     display: none !important;
