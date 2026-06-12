@@ -265,6 +265,12 @@ document.addEventListener('keydown', e => {
     openViewerFindBar()
     return
   }
+  // WebView2 내장 브라우저 단축키 차단 (Ctrl+J: 다운로드 패널 — 뷰어에서 무의미)
+  // editing 가드보다 먼저 처리해야 입력 필드에 포커스가 있어도 차단됨
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'j') {
+    e.preventDefault()
+    return
+  }
   const editing = isEditableTarget(e.target)
   if (editing && !e.altKey) return
 
