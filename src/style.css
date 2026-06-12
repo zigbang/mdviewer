@@ -674,11 +674,6 @@ html, body {
   border-bottom: 1px solid var(--border);
   flex: none;
 }
-#diagram-hint {
-  margin-right: auto;
-  font-size: 11px;
-  color: var(--text-dim);
-}
 #diagram-toolbar button {
   width: 26px;
   height: 26px;
