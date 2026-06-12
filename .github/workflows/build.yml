@@ -1,0 +1,100 @@
+name: MDViewer Build
+
+on:
+  push:
+    tags:
+      - 'mdviewer-v*'
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+          - os: macos-latest
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - run: npm ci
+
+      # Windows: build only (no signing yet)
+      - name: Build (Windows)
+        if: matrix.os == 'windows-latest'
+        run: npx tauri build
+
+      # macOS: tauri-action handles cert import, signing, and notarization via env vars
+      - name: Build with Developer ID signing + notarization (macOS)
+        if: matrix.os == 'macos-latest'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+
+      - name: Collect artifacts (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          cp src-tauri/target/release/bundle/nsis/*.exe artifacts/ 2>/dev/null || true
+          cp src-tauri/target/release/bundle/msi/*.msi artifacts/ 2>/dev/null || true
+          cp MDViewer_Windows_Security_Guide.pdf artifacts/ 2>/dev/null || true
+          cp History.md artifacts/
+
+      - name: Collect signed artifacts (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          set -e
+          VERSION=$(node -p "require('./package.json').version")
+          mkdir -p artifacts
+          # .app 번들은 이미 Developer ID 서명 + notarized + stapled 상태
+          for app in src-tauri/target/release/bundle/macos/*.app; do
+            [ -e "$app" ] || continue
+            echo "::group::Verifying $app"
+            codesign --verify --strict --verbose=2 "$app"
+            codesign -dv --verbose=4 "$app" 2>&1 | grep -E "Authority|TeamIdentifier|Notarization|flags" || true
+            spctl -a -vv "$app" || true
+            echo "::endgroup::"
+            OUT="artifacts/MDViewer_V${VERSION}-mac.zip"
+            ditto -c -k --sequesterRsrc --keepParent "$app" "$OUT"
+            echo "Created: $OUT"
+          done
+          # DMG도 있으면 복사 (서명/notarize 됨)
+          cp src-tauri/target/release/bundle/dmg/*.dmg artifacts/ 2>/dev/null || true
+          cp History.md artifacts/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mdviewer-${{ matrix.os }}
+          path: artifacts/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: MDViewer ${{ github.ref_name }}
+          files: artifacts/*
