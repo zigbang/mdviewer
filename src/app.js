@@ -1201,9 +1201,36 @@ diagramZoomLevel.addEventListener('click', diagramZoomReset)
 document.getElementById('diagram-close').addEventListener('click', closeDiagramViewer)
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && diagramOverlay.classList.contains('visible')) {
+  if (!diagramViewerOpen()) return
+  if (e.key === 'Escape') {
     e.preventDefault()
     closeDiagramViewer()
+    return
+  }
+  // 스크롤 키는 본문이 아니라 오버레이 뷰포트에 적용 (포커스가 본문에 남아있어도)
+  if (e.ctrlKey || e.metaKey || e.altKey || isEditableTarget(e.target)) return
+  const page = diagramViewport.clientHeight - 40
+  const STEP = 60
+  const scrollByKey = {
+    ArrowLeft:  [-STEP, 0],
+    ArrowRight: [ STEP, 0],
+    ArrowUp:    [0, -STEP],
+    ArrowDown:  [0,  STEP],
+    PageUp:     [0, -page],
+    PageDown:   [0,  page],
+    ' ':        [0,  page]
+  }
+  if (scrollByKey[e.key]) {
+    e.preventDefault()
+    diagramViewport.scrollLeft += scrollByKey[e.key][0]
+    diagramViewport.scrollTop  += scrollByKey[e.key][1]
+  } else if (e.key === 'Home') {
+    e.preventDefault()
+    diagramViewport.scrollTop = 0
+    diagramViewport.scrollLeft = 0
+  } else if (e.key === 'End') {
+    e.preventDefault()
+    diagramViewport.scrollTop = diagramViewport.scrollHeight
   }
 })
 

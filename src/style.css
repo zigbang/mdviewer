@@ -702,6 +702,7 @@ html, body {
 #diagram-viewport {
   flex: 1;
   overflow: auto;
+  overscroll-behavior: contain; /* 스크롤 끝에서 본문으로 체이닝 방지 */
   cursor: grab;
 }
 #diagram-viewport.panning { cursor: grabbing; }
