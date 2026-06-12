@@ -276,17 +276,18 @@ document.addEventListener('keydown', e => {
     e.preventDefault()
     btnToggleToc.click()
   }
+  // 다이어그램 확대 보기가 열려 있으면 줌 숏컷은 다이어그램에 적용
   if ((e.ctrlKey || e.metaKey) && e.key === '+') {
     e.preventDefault()
-    doZoomIn()
+    diagramViewerOpen() ? diagramZoomIn() : doZoomIn()
   }
   if ((e.ctrlKey || e.metaKey) && e.key === '-') {
     e.preventDefault()
-    doZoomOut()
+    diagramViewerOpen() ? diagramZoomOut() : doZoomOut()
   }
   if ((e.ctrlKey || e.metaKey) && (e.key === '0' || e.key === '=')) {
     e.preventDefault()
-    doZoomReset()
+    diagramViewerOpen() ? diagramZoomReset() : doZoomReset()
   }
   if (e.key === 'F11') {
     e.preventDefault()
@@ -1100,9 +1101,15 @@ const DIAGRAM_EXPAND_ICON =
   '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">' +
   '<path d="M6 2H2v4M10 2h4v4M6 14H2v-4M10 14h4v-4"/></svg>'
 
-let diagramScale     = 1
-let diagramBaseWidth = 0
-let diagramSvg       = null
+let diagramScale        = 1
+let diagramInitialScale = 1
+let diagramBaseWidth    = 0
+let diagramSvg          = null
+
+function diagramViewerOpen() { return diagramOverlay.classList.contains('visible') }
+function diagramZoomIn()     { setDiagramScale(diagramScale + 0.25) }
+function diagramZoomOut()    { setDiagramScale(diagramScale - 0.25) }
+function diagramZoomReset()  { setDiagramScale(diagramInitialScale) }
 
 function attachDiagramZoomButtons(block) {
   if (!block.querySelector('svg') || block.querySelector('.mermaid-zoom-btn')) return
@@ -1169,7 +1176,8 @@ function openDiagramViewer(block) {
   diagramOverlay.classList.add('visible')
   // 초기 배율: 뷰포트 가로를 채우되 최소 100% ~ 최대 300%
   const avail = diagramViewport.clientWidth - 80
-  diagramScale = Math.min(3, Math.max(1, avail / diagramBaseWidth))
+  diagramInitialScale = Math.min(3, Math.max(1, avail / diagramBaseWidth))
+  diagramScale = diagramInitialScale
   applyDiagramScale()
   diagramViewport.scrollLeft = 0
   diagramViewport.scrollTop = 0
@@ -1181,9 +1189,9 @@ function closeDiagramViewer() {
   diagramSvg = null
 }
 
-document.getElementById('diagram-zoom-in').addEventListener('click', () => setDiagramScale(diagramScale + 0.25))
-document.getElementById('diagram-zoom-out').addEventListener('click', () => setDiagramScale(diagramScale - 0.25))
-diagramZoomLevel.addEventListener('click', () => setDiagramScale(1))
+document.getElementById('diagram-zoom-in').addEventListener('click', diagramZoomIn)
+document.getElementById('diagram-zoom-out').addEventListener('click', diagramZoomOut)
+diagramZoomLevel.addEventListener('click', diagramZoomReset)
 document.getElementById('diagram-close').addEventListener('click', closeDiagramViewer)
 
 document.addEventListener('keydown', e => {
