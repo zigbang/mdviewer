@@ -1087,7 +1087,147 @@ async function renderMermaid() {
       }
     })
   }
+  blocks.forEach(attachDiagramZoomButtons)
 }
+
+// ── Mermaid 다이어그램 확대 보기 ─────────────────────────
+const diagramOverlay   = document.getElementById('diagram-overlay')
+const diagramViewport  = document.getElementById('diagram-viewport')
+const diagramContent   = document.getElementById('diagram-content')
+const diagramZoomLevel = document.getElementById('diagram-zoom-level')
+
+const DIAGRAM_EXPAND_ICON =
+  '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">' +
+  '<path d="M6 2H2v4M10 2h4v4M6 14H2v-4M10 14h4v-4"/></svg>'
+
+let diagramScale     = 1
+let diagramBaseWidth = 0
+let diagramSvg       = null
+
+function attachDiagramZoomButtons(block) {
+  if (!block.querySelector('svg') || block.querySelector('.mermaid-zoom-btn')) return
+  const mk = pos => {
+    const b = document.createElement('button')
+    b.className = `mermaid-zoom-btn ${pos}`
+    b.title = '다이어그램 크게 보기'
+    b.innerHTML = DIAGRAM_EXPAND_ICON
+    b.addEventListener('click', e => {
+      e.stopPropagation()
+      openDiagramViewer(block)
+    })
+    return b
+  }
+  block.appendChild(mk('top'))
+  // 세로로 긴 다이어그램은 아래쪽에도 버튼을 둬서 스크롤 없이 접근 가능하게
+  if (block.offsetHeight > 240) block.appendChild(mk('bottom'))
+}
+
+function diagramNaturalWidth(svg) {
+  const vb = svg.viewBox && svg.viewBox.baseVal
+  if (vb && vb.width) return vb.width
+  const w = parseFloat(svg.getAttribute('width'))
+  if (!isNaN(w) && w > 0) return w
+  return svg.getBoundingClientRect().width || 600
+}
+
+function applyDiagramScale() {
+  if (!diagramSvg) return
+  diagramSvg.style.width = Math.round(diagramBaseWidth * diagramScale) + 'px'
+  diagramZoomLevel.textContent = Math.round(diagramScale * 100) + '%'
+}
+
+// anchor(뷰포트 내 좌표)가 가리키는 지점이 줌 후에도 같은 자리에 오도록 스크롤 보정
+function setDiagramScale(next, anchorX, anchorY) {
+  const prev = diagramScale
+  diagramScale = Math.min(6, Math.max(0.25, next))
+  if (diagramScale === prev) return
+  const rect = diagramViewport.getBoundingClientRect()
+  const ax = (anchorX ?? rect.left + rect.width / 2) - rect.left
+  const ay = (anchorY ?? rect.top + rect.height / 2) - rect.top
+  const sx = diagramViewport.scrollLeft
+  const sy = diagramViewport.scrollTop
+  const ratio = diagramScale / prev
+  applyDiagramScale()
+  diagramViewport.scrollLeft = (sx + ax) * ratio - ax
+  diagramViewport.scrollTop  = (sy + ay) * ratio - ay
+}
+
+function openDiagramViewer(block) {
+  const svg = block.querySelector('svg')
+  if (!svg) return
+  diagramContent.innerHTML = ''
+  // 원본 svg의 id/내부 <style>을 그대로 유지해야 mermaid 자체 스타일이 적용됨
+  const clone = svg.cloneNode(true)
+  clone.style.maxWidth = 'none'
+  clone.style.height = 'auto'
+  const stage = document.createElement('div')
+  stage.className = 'diagram-stage'
+  stage.appendChild(clone)
+  diagramContent.appendChild(stage)
+  diagramSvg = clone
+  diagramBaseWidth = diagramNaturalWidth(clone)
+  diagramOverlay.classList.add('visible')
+  // 초기 배율: 뷰포트 가로를 채우되 최소 100% ~ 최대 300%
+  const avail = diagramViewport.clientWidth - 80
+  diagramScale = Math.min(3, Math.max(1, avail / diagramBaseWidth))
+  applyDiagramScale()
+  diagramViewport.scrollLeft = 0
+  diagramViewport.scrollTop = 0
+}
+
+function closeDiagramViewer() {
+  diagramOverlay.classList.remove('visible')
+  diagramContent.innerHTML = ''
+  diagramSvg = null
+}
+
+document.getElementById('diagram-zoom-in').addEventListener('click', () => setDiagramScale(diagramScale + 0.25))
+document.getElementById('diagram-zoom-out').addEventListener('click', () => setDiagramScale(diagramScale - 0.25))
+diagramZoomLevel.addEventListener('click', () => setDiagramScale(1))
+document.getElementById('diagram-close').addEventListener('click', closeDiagramViewer)
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && diagramOverlay.classList.contains('visible')) {
+    e.preventDefault()
+    closeDiagramViewer()
+  }
+})
+
+// Ctrl+휠 줌 (커서 위치 기준)
+diagramViewport.addEventListener('wheel', e => {
+  if (!e.ctrlKey) return
+  e.preventDefault()
+  setDiagramScale(diagramScale * (e.deltaY < 0 ? 1.15 : 1 / 1.15), e.clientX, e.clientY)
+}, { passive: false })
+
+// 드래그 팬
+let diagramPan = null
+diagramViewport.addEventListener('mousedown', e => {
+  if (e.button !== 0) return
+  diagramPan = {
+    x: e.clientX, y: e.clientY,
+    sl: diagramViewport.scrollLeft, st: diagramViewport.scrollTop,
+    moved: false
+  }
+  diagramViewport.classList.add('panning')
+  e.preventDefault()
+})
+window.addEventListener('mousemove', e => {
+  if (!diagramPan) return
+  const dx = e.clientX - diagramPan.x
+  const dy = e.clientY - diagramPan.y
+  if (Math.abs(dx) > 3 || Math.abs(dy) > 3) diagramPan.moved = true
+  diagramViewport.scrollLeft = diagramPan.sl - dx
+  diagramViewport.scrollTop  = diagramPan.st - dy
+})
+window.addEventListener('mouseup', e => {
+  if (!diagramPan) return
+  const wasDrag = diagramPan.moved
+  diagramPan = null
+  diagramViewport.classList.remove('panning')
+  // 드래그가 아닌 빈 배경 클릭이면 닫기
+  if (!wasDrag && (e.target === diagramViewport || e.target === diagramContent)) closeDiagramViewer()
+})
 
 // ── KaTeX 렌더링 ─────────────────────────────────────────
 function renderKatex() {
