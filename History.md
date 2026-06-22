@@ -1,5 +1,20 @@
 # MDViewer Release History
 
+## V2.6.0
+
+### Features
+- Per-diagram zoom viewer for mermaid — each rendered diagram can be opened in a dedicated zoom overlay for closer inspection.
+- Zoom keyboard shortcuts are routed to the diagram viewer while the overlay is open, so zooming acts on the diagram instead of the document underneath.
+
+### Fixes
+- Diagram overlay no longer leaks keyboard scrolling to the document behind it.
+- Suppress the WebView2 `Ctrl+J` downloads panel so the shortcut no longer hijacks focus.
+
+### Build
+- macOS release builds are signed with Developer ID and notarized again. The signing/notarization step survived the repo migration from `zigbang/at`, but its GitHub Actions secrets did not — they have been re-registered on `zigbang/mdviewer`, so release artifacts are properly signed once more.
+
+---
+
 ## V2.5.1
 
 ### Fixes
