@@ -283,7 +283,8 @@ document.addEventListener('keydown', e => {
     btnToggleToc.click()
   }
   // 다이어그램 확대 보기가 열려 있으면 줌 숏컷은 다이어그램에 적용
-  if ((e.ctrlKey || e.metaKey) && e.key === '+') {
+  // '='는 Shift 없이 +키를 누른 경우 — 브라우저 관례대로 확대로 처리
+  if ((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '=')) {
     e.preventDefault()
     diagramViewerOpen() ? diagramZoomIn() : doZoomIn()
   }
@@ -291,7 +292,7 @@ document.addEventListener('keydown', e => {
     e.preventDefault()
     diagramViewerOpen() ? diagramZoomOut() : doZoomOut()
   }
-  if ((e.ctrlKey || e.metaKey) && (e.key === '0' || e.key === '=')) {
+  if ((e.ctrlKey || e.metaKey) && e.key === '0') {
     e.preventDefault()
     diagramViewerOpen() ? diagramZoomReset() : doZoomReset()
   }
@@ -1124,16 +1125,21 @@ function attachDiagramZoomButtons(block) {
     b.className = `mermaid-zoom-btn ${pos}`
     b.title = '다이어그램 크게 보기'
     b.innerHTML = DIAGRAM_EXPAND_ICON
-    b.addEventListener('click', e => {
-      e.stopPropagation()
-      openDiagramViewer(block)
-    })
     return b
   }
   block.appendChild(mk('top'))
   // 세로로 긴 다이어그램은 아래쪽에도 버튼을 둬서 스크롤 없이 접근 가능하게
   if (block.offsetHeight > 240) block.appendChild(mk('bottom'))
 }
+
+// 클릭은 위임으로 처리 — 탭 캐시 복원(innerHTML 재주입) 시 버튼 노드가
+// 재생성되면서 개별 리스너가 사라지므로, preview에 리스너를 1회만 등록한다
+preview.addEventListener('click', e => {
+  const btn = e.target.closest('.mermaid-zoom-btn')
+  if (!btn) return
+  const block = btn.closest('.mermaid')
+  if (block) openDiagramViewer(block)
+})
 
 function diagramNaturalWidth(svg) {
   const vb = svg.viewBox && svg.viewBox.baseVal
