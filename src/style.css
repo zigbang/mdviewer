@@ -550,14 +550,16 @@ html, body {
   color: var(--code-color);
 }
 
-#preview pre {
+#preview pre,
+#diagram-content pre {
   background: var(--pre-bg);
   border: 1px solid var(--border);
   border-radius: 6px;
   margin: 1em 0;
   overflow-x: auto;
 }
-#preview pre code {
+#preview pre code,
+#diagram-content pre code {
   background: none;
   padding: 1em 1.2em;
   display: block;
@@ -625,8 +627,12 @@ html, body {
   overflow-x: auto;
 }
 
-/* mermaid 확대 버튼 (위/아래 우측 모서리) */
-.mermaid-zoom-btn {
+/* 코드블록 래퍼 — pre는 스크롤 컨테이너라 버튼을 직접 넣으면
+   가로 스크롤 시 버튼이 함께 밀려 사라진다. 래퍼를 기준으로 고정. */
+.pre-zoom-host { position: relative; }
+
+/* 블록 확대 버튼 — mermaid / 코드블록 공용 (위·아래 우측 모서리) */
+.block-zoom-btn {
   position: absolute;
   right: 6px;
   width: 22px;
@@ -644,10 +650,11 @@ html, body {
   transition: opacity 0.15s, background 0.15s;
   z-index: 5;
 }
-.mermaid-zoom-btn.top    { top: 6px; }
-.mermaid-zoom-btn.bottom { bottom: 6px; }
-#preview .mermaid:hover .mermaid-zoom-btn { opacity: 0.85; }
-.mermaid-zoom-btn:hover {
+.block-zoom-btn.top    { top: 6px; }
+.block-zoom-btn.bottom { bottom: 6px; }
+#preview .mermaid:hover .block-zoom-btn,
+#preview .pre-zoom-host:hover .block-zoom-btn { opacity: 0.85; }
+.block-zoom-btn:hover {
   background: var(--accent);
   color: #fff;
   opacity: 1 !important;
@@ -726,6 +733,17 @@ html, body {
   display: block;
   max-width: none !important;
   height: auto;
+}
+/* 코드블록 확대 — pre가 배경·테두리를 가지므로 stage는 껍데기만 */
+#diagram-content .code-stage {
+  background: none;
+  border: none;
+  padding: 0;
+}
+#diagram-content pre {
+  margin: 0;
+  overflow: visible; /* 스크롤은 #diagram-viewport 전담 — 이중 스크롤바 방지 */
+  cursor: text;      /* 뷰포트의 grab 커서 대신 — 선택·복사 가능 */
 }
 
 /* ── About 모달 ──────────────────────────────────────── */
@@ -1159,7 +1177,7 @@ html, body {
   #translate-overlay,
   #reload-overlay,
   #diagram-overlay,
-  .mermaid-zoom-btn,
+  .block-zoom-btn,
   #recent-dropdown,
   #preview-empty {
     display: none !important;

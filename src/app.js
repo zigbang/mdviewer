@@ -1012,11 +1012,27 @@ async function renderMarkdown(mdText) {
   await fixImagePaths()
   await renderMermaid()
   renderKatex()
+  attachCodeZoomButtons()
   buildToc()
 }
 
 // ── 링크 클릭 처리 (이벤트 위임, 1회 등록) ───────────────
 preview.addEventListener('click', async e => {
+  // 확대 버튼 (mermaid / 코드블록) — 위임 처리
+  const zoomBtn = e.target.closest('.block-zoom-btn')
+  if (zoomBtn) {
+    e.preventDefault()
+    e.stopPropagation()
+    const mermaidBlock = zoomBtn.closest('.mermaid')
+    if (mermaidBlock) {
+      openDiagramViewer(mermaidBlock)
+    } else {
+      const pre = zoomBtn.parentNode.querySelector('pre')
+      if (pre) openCodeViewer(pre)
+    }
+    return
+  }
+
   const a = e.target.closest('a[href]')
   if (!a) return
   const href = a.getAttribute('href')
@@ -1110,29 +1126,49 @@ const DIAGRAM_EXPAND_ICON =
 let diagramScale        = 1
 let diagramInitialScale = 1
 let diagramBaseWidth    = 0
-let diagramSvg          = null
+let diagramBaseFontPx   = 0
+let diagramTarget       = null
+let diagramKind         = 'svg' // 'svg' | 'code'
 
 function diagramViewerOpen() { return diagramOverlay.classList.contains('visible') }
 function diagramZoomIn()     { setDiagramScale(diagramScale + 0.25) }
 function diagramZoomOut()    { setDiagramScale(diagramScale - 0.25) }
 function diagramZoomReset()  { setDiagramScale(diagramInitialScale) }
 
-function attachDiagramZoomButtons(block) {
-  if (!block.querySelector('svg') || block.querySelector('.mermaid-zoom-btn')) return
+// 클릭 처리는 #preview 위임으로 — 탭 전환 시 캐시된 innerHTML을 복원하면
+// 리스너가 사라지므로 버튼에 직접 붙이면 두 번째 방문부터 죽는다 (tabs.js render() 캐시 히트)
+function attachZoomButtons(block, title) {
+  if (block.querySelector('.block-zoom-btn')) return
   const mk = pos => {
     const b = document.createElement('button')
-    b.className = `mermaid-zoom-btn ${pos}`
-    b.title = '다이어그램 크게 보기'
+    b.className = `block-zoom-btn ${pos}`
+    b.title = title
+    b.type = 'button'
     b.innerHTML = DIAGRAM_EXPAND_ICON
-    b.addEventListener('click', e => {
-      e.stopPropagation()
-      openDiagramViewer(block)
-    })
     return b
   }
   block.appendChild(mk('top'))
-  // 세로로 긴 다이어그램은 아래쪽에도 버튼을 둬서 스크롤 없이 접근 가능하게
+  // 세로로 긴 블록은 아래쪽에도 버튼을 둬서 스크롤 없이 접근 가능하게
   if (block.offsetHeight > 240) block.appendChild(mk('bottom'))
+}
+
+function attachDiagramZoomButtons(block) {
+  if (!block.querySelector('svg')) return
+  attachZoomButtons(block, '다이어그램 크게 보기')
+}
+
+// 가로로 넘치거나 세로로 긴 코드블록에만 부착 (짧은 샘플은 그대로 둠)
+function attachCodeZoomButtons() {
+  preview.querySelectorAll('pre').forEach(pre => {
+    if (pre.parentNode.classList.contains('pre-zoom-host')) return
+    if (pre.scrollWidth <= pre.clientWidth + 1 && pre.offsetHeight <= 240) return
+    // 버튼은 pre가 아니라 래퍼에 — pre에 넣으면 가로 스크롤 시 버튼이 밀려 사라짐
+    const host = document.createElement('div')
+    host.className = 'pre-zoom-host'
+    pre.parentNode.insertBefore(host, pre)
+    host.appendChild(pre)
+    attachZoomButtons(host, '코드 크게 보기')
+  })
 }
 
 function diagramNaturalWidth(svg) {
@@ -1144,8 +1180,13 @@ function diagramNaturalWidth(svg) {
 }
 
 function applyDiagramScale() {
-  if (!diagramSvg) return
-  diagramSvg.style.width = Math.round(diagramBaseWidth * diagramScale) + 'px'
+  if (!diagramTarget) return
+  if (diagramKind === 'code') {
+    // 폰트 크기로 확대 — pre의 내재 폭/높이가 함께 커져 뷰포트 스크롤 범위가 정확히 갱신됨
+    diagramTarget.style.fontSize = (diagramBaseFontPx * diagramScale).toFixed(2) + 'px'
+  } else {
+    diagramTarget.style.width = Math.round(diagramBaseWidth * diagramScale) + 'px'
+  }
   diagramZoomLevel.textContent = Math.round(diagramScale * 100) + '%'
 }
 
@@ -1165,10 +1206,18 @@ function setDiagramScale(next, anchorX, anchorY) {
   diagramViewport.scrollTop  = (sy + ay) * ratio - ay
 }
 
+function showViewerStage(stage) {
+  diagramContent.innerHTML = ''
+  diagramContent.appendChild(stage)
+  diagramOverlay.classList.add('visible')
+  applyDiagramScale()
+  diagramViewport.scrollLeft = 0
+  diagramViewport.scrollTop = 0
+}
+
 function openDiagramViewer(block) {
   const svg = block.querySelector('svg')
   if (!svg) return
-  diagramContent.innerHTML = ''
   // 원본 svg의 id/내부 <style>을 그대로 유지해야 mermaid 자체 스타일이 적용됨
   const clone = svg.cloneNode(true)
   clone.style.maxWidth = 'none'
@@ -1176,23 +1225,35 @@ function openDiagramViewer(block) {
   const stage = document.createElement('div')
   stage.className = 'diagram-stage'
   stage.appendChild(clone)
-  diagramContent.appendChild(stage)
-  diagramSvg = clone
+  diagramKind = 'svg'
+  diagramTarget = clone
   diagramBaseWidth = diagramNaturalWidth(clone)
-  diagramOverlay.classList.add('visible')
   // 초기 배율: 뷰포트 가로를 채우되 최소 100% ~ 최대 300%
   const avail = diagramViewport.clientWidth - 80
   diagramInitialScale = Math.min(3, Math.max(1, avail / diagramBaseWidth))
   diagramScale = diagramInitialScale
-  applyDiagramScale()
-  diagramViewport.scrollLeft = 0
-  diagramViewport.scrollTop = 0
+  showViewerStage(stage)
+}
+
+function openCodeViewer(pre) {
+  // cloneNode로 hljs가 심어둔 span 클래스까지 복제 → 하이라이팅/스타일 그대로 유지
+  const clone = pre.cloneNode(true)
+  const stage = document.createElement('div')
+  stage.className = 'diagram-stage code-stage'
+  stage.appendChild(clone)
+  diagramKind = 'code'
+  diagramTarget = stage
+  diagramBaseFontPx = parseFloat(getComputedStyle(pre).fontSize) || 14
+  // 코드는 원본 가독 크기가 기준 — 넓은 오버레이 폭 자체가 이득이므로 100%에서 시작
+  diagramInitialScale = 1
+  diagramScale = 1
+  showViewerStage(stage)
 }
 
 function closeDiagramViewer() {
   diagramOverlay.classList.remove('visible')
   diagramContent.innerHTML = ''
-  diagramSvg = null
+  diagramTarget = null
 }
 
 document.getElementById('diagram-zoom-in').addEventListener('click', diagramZoomIn)
@@ -1245,6 +1306,9 @@ diagramViewport.addEventListener('wheel', e => {
 let diagramPan = null
 diagramViewport.addEventListener('mousedown', e => {
   if (e.button !== 0) return
+  // 코드 확대 중에는 본문 위 드래그를 텍스트 선택으로 양보 (팬은 여백 드래그·휠·스크롤바)
+  const onBackdrop = e.target === diagramViewport || e.target === diagramContent
+  if (diagramKind === 'code' && diagramViewerOpen() && !onBackdrop) return
   diagramPan = {
     x: e.clientX, y: e.clientY,
     sl: diagramViewport.scrollLeft, st: diagramViewport.scrollTop,
