@@ -1,5 +1,16 @@
 # MDViewer Release History
 
+## V2.7.0
+
+### Features
+- Zoom viewer for code blocks — `<pre>` blocks that overflow horizontally (or run taller than 240px) get an expand button that opens the same overlay used for mermaid diagrams. The block is cloned with `cloneNode(true)`, so highlight.js token colors, background, and border are identical to the inline rendering. Zoom is applied as a `font-size` multiplier rather than a transform, because `pre` is `white-space: pre` — its intrinsic width grows with the font, keeping the viewport's scroll extents exact. Dragging over the code selects text (panning moves to the backdrop, wheel, and scrollbars) so code in the popup stays copyable.
+
+### Fixes
+- Zoom buttons no longer go dead after revisiting a tab. `tabs.js` `render()` restores a cached `renderedHTML` through `innerHTML`, which drops event listeners — the mermaid zoom buttons introduced in V2.6.0 had been inert on every second visit to a tab. Clicks are now handled by delegation on `#preview`.
+- Code block expand buttons stay in place while scrolling a wide block horizontally. `pre` is a scroll container, so an absolutely positioned child scrolls away with the content; the button now lives in a `div.pre-zoom-host` wrapper.
+
+---
+
 ## V2.6.0
 
 ### Features
