@@ -1,5 +1,16 @@
 # MDViewer Release History
 
+## V2.7.1
+
+### Fixes
+- Strikethrough now requires a double tilde (`~~text~~`). marked@11's GFM `del` rule also accepts a single `~`, so range notation such as `32~183s ... 00:17~00:47` struck through everything between the two tildes. marked has no option to turn this off, so the `del` tokenizer is overridden (`src/markdown-ext.js`); whitespace and `~~~` handling are unchanged. Note this is stricter than GitHub, which renders `~single~` as strikethrough — in MDViewer it now stays plain text.
+
+### Build
+- `npm test` runs a `node:test` regression suite (`tests/`) against marked pinned to 11.0.0, the same version the app loads from the CDN.
+- Under `tauri dev` the window title reads "MD Viewer (dev)" to tell it apart from the installed app.
+
+---
+
 ## V2.7.0
 
 ### Features
