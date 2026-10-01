@@ -93,8 +93,10 @@ document.getElementById('toolbar-logo').addEventListener('click', () => {
 })
 
 // ── 윈도우 타이틀 업데이트 ────────────────────────────────
+// tauri dev 는 localhost 개발 서버에서 로드됨 (설치본은 tauri.localhost) → 설치본과 창 구분
+const APP_NAME = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'MD Viewer (dev)' : 'MD Viewer'
 function setWindowTitle(displayName, filePath) {
-  const title = filePath ? `${displayName} - MD Viewer - ${filePath}` : 'MD Viewer'
+  const title = filePath ? `${displayName} - ${APP_NAME} - ${filePath}` : APP_NAME
   getCurrentWindow().setTitle(title)
 }
 
