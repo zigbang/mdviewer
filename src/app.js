@@ -36,6 +36,7 @@ marked.use({
     }
   }
 })
+marked.use(window.MDV.strikethroughExtension)   // 단일 ~ 취소선 금지 (markdown-ext.js)
 
 // ── 상태 ─────────────────────────────────────────────────
 let currentFilePath     = null
